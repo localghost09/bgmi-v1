@@ -1,0 +1,14 @@
+node_modules/
+.env
+.DS_Store
+npm-debug.log*
+data/admin.json
+data/admin.json.tmp
+data/.session-secret
+data/.session-secret.*
+data/tournament.json.tmp
+
+data/captains.json
+data/captains.json.tmp
+# Keep live event data out of version control and release archives.
+data/tournament.json
