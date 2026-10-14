@@ -386,8 +386,11 @@
                 <div>
                   <h3>Squad event controls</h3>
                   <p>
-                    Use + finish for each confirmed finish. Status changes are
-                    reflected on the overlay.
+                    All <b>16 squads</b> live on this page — no paging needed.
+                    Mark a player OUT and the squad's placement is derived from
+                    the elimination order, so positions 9–16 score zero
+                    placement points automatically. Type a placement any time to
+                    override it for re-verification.
                   </p>
                 </div>
                 <div class="live-head-tools">
@@ -402,47 +405,74 @@
                 </div>
               </div>
               <div class="squad-tools" id="squadTools">
-                <button class="btn btn-small" id="backToSetup" type="button">
-                  ← Match setup &amp; squad selection</button
-                >
-                <div class="squad-filter-chips" id="liveStatusFilter">
-                  <button
-                    type="button"
-                    class="squad-filter-chip active"
-                    data-live-filter="all"
+                <div class="squad-tools-row">
+                  <button class="btn btn-small" id="backToSetup" type="button">
+                    ← Match setup &amp; squad selection</button
                   >
-                    All squads <b id="liveFilterAllCount">0</b>
-                  </button>
-                  <button
-                    type="button"
-                    class="squad-filter-chip"
-                    data-live-filter="live"
-                  >
-                    Active <b id="liveFilterActiveCount">0</b>
-                  </button>
-                  <button
-                    type="button"
-                    class="squad-filter-chip"
-                    data-live-filter="finished"
-                  >
-                    Eliminated <b id="liveFilterOutCount">0</b>
-                  </button>
+                  <div class="squad-filter-chips" id="liveStatusFilter">
+                    <button
+                      type="button"
+                      class="squad-filter-chip active"
+                      data-live-filter="all"
+                    >
+                      All squads <b id="liveFilterAllCount">0</b>
+                    </button>
+                    <button
+                      type="button"
+                      class="squad-filter-chip"
+                      data-live-filter="live"
+                    >
+                      Active <b id="liveFilterActiveCount">0</b>
+                    </button>
+                    <button
+                      type="button"
+                      class="squad-filter-chip"
+                      data-live-filter="finished"
+                    >
+                      Eliminated <b id="liveFilterOutCount">0</b>
+                    </button>
+                  </div>
+                  <div class="squad-collapse-tools">
+                    <div class="density-switch" id="densitySwitch" role="group" aria-label="Card density">
+                      <button type="button" data-density="comfortable" class="active">
+                        Comfortable
+                      </button>
+                      <button type="button" data-density="compact">Compact</button>
+                    </div>
+                    <button class="btn btn-small" id="expandAllSquads">
+                      Expand all
+                    </button>
+                    <button class="btn btn-small" id="collapseAllSquads">
+                      Collapse all
+                    </button>
+                  </div>
                 </div>
-                <div class="squad-collapse-tools">
-                  <button class="btn btn-small" id="expandAllSquads">
-                    Expand all
-                  </button>
-                  <button class="btn btn-small" id="collapseAllSquads">
-                    Collapse all
-                  </button>
+                <div class="squad-tools-row placement-row">
+                  <p class="placement-status" id="lobbyPlacementStatus">
+                    16 alive · next squad wiped takes 16th place
+                  </p>
+                  <div class="placement-controls">
+                    <button class="btn btn-small" id="resetAutoPlacements" type="button" title="Rebuild every placement from the recorded elimination order">
+                      ↺ Re-derive placements
+                    </button>
+                    <button
+                      class="btn btn-small toggle-btn on"
+                      id="autoPlacementsToggle"
+                      type="button"
+                      aria-pressed="true"
+                      title="Turn automatic placement assignment on or off"
+                    >
+                      AUTO PLACEMENTS · ON
+                    </button>
+                  </div>
                 </div>
+                <div
+                  id="squadIndex"
+                  class="squad-index"
+                  aria-label="Jump to squad"
+                ></div>
               </div>
               <div id="liveTeams" class="live-team-grid"></div>
-              <div
-                id="liveTeamsPager"
-                class="squad-pager hidden"
-                aria-label="Squad page navigation"
-              ></div>
             </div>
             <aside class="panel event-rail">
               <div class="panel-head">

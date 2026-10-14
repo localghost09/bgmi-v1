@@ -4836,58 +4836,6 @@ body {
   color: var(--sq-lime-soft);
 }
 
-/* ---------- Squad pager ---------- */
-.squad-pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 16px 0 0;
-  padding: 12px 14px;
-  border: 1px solid var(--sq-line-soft);
-  border-radius: var(--sq-radius);
-  background: linear-gradient(120deg, #0f1826, #0b1119);
-}
-.squad-pager.hidden {
-  display: none !important;
-}
-.squad-page-btn {
-  min-height: 36px;
-  padding: 0 16px;
-  border: 1px solid #33506e;
-  border-radius: 9px;
-  background: #101d2c;
-  color: #c6d6e6;
-  font: 800 10px var(--mono);
-  letter-spacing: 0.6px;
-}
-.squad-page-btn:hover:not(:disabled) {
-  border-color: #4c7a2f;
-  color: var(--sq-lime-soft);
-}
-.squad-page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.squad-page-label {
-  color: #91a5ba;
-  font: 800 9px var(--mono);
-  letter-spacing: 0.8px;
-  text-align: center;
-}
-.squad-page-label b {
-  color: #e4eef8;
-}
-.live-list-head .count-chip {
-  border: 1px solid #33506e;
-  background: #0f1c2b;
-  color: #bed2e4;
-  border-radius: 999px;
-  padding: 6px 12px;
-  font: 800 9px var(--mono);
-  letter-spacing: 0.7px;
-}
-
 /* ---------- Responsive ---------- */
 @media (max-width: 1180px) {
   .setup-steps {
@@ -4925,5 +4873,358 @@ body {
   }
   .setup-bar-actions .btn {
     flex: 1 1 auto;
+  }
+}
+
+/* =========================================================================
+   V4.10 — ALL 16 SQUADS ON ONE PAGE + AUTOMATIC PLACEMENTS
+   ========================================================================= */
+
+/* ---------- Toolbar rows ---------- */
+.squad-tools-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.squad-tools-row + .squad-tools-row {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #1b2a3d;
+}
+.placement-row {
+  justify-content: space-between;
+}
+.placement-status {
+  margin: 0;
+  color: #9db0c4;
+  font: 800 9px/1.7 var(--mono);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.placement-status b {
+  color: #e6f0f9;
+}
+.placement-sep {
+  color: #465c74;
+  padding: 0 2px;
+}
+.placement-warn {
+  color: #f6d79b;
+}
+.placement-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.toggle-btn.on {
+  border-color: #5c8433 !important;
+  background: linear-gradient(120deg, #1d2f14, #14210f) !important;
+  color: #ddf3ab !important;
+}
+.toggle-btn.off {
+  border-color: #7a4a2a !important;
+  background: linear-gradient(120deg, #2a1d10, #1c1409) !important;
+  color: #f4cf9a !important;
+}
+
+/* ---------- Density switch ---------- */
+.density-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #26374d;
+  border-radius: 10px;
+  background: #0b1320;
+}
+.density-switch button {
+  min-height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #93a8bd;
+  font: 800 9px var(--mono);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.density-switch button.active {
+  background: linear-gradient(120deg, #1d2f14, #16240f);
+  color: #ddf3ab;
+  box-shadow: inset 0 0 0 1px #5c843344;
+}
+
+/* ---------- Sticky lobby index (jump to any of the 16 squads) ---------- */
+.squad-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #1b2a3d;
+  border-radius: 12px;
+  background: linear-gradient(120deg, #0d1622, #0a1119);
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  box-shadow: 0 10px 24px #05080ecc;
+}
+.squad-index.hidden {
+  display: none !important;
+}
+.squad-index-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 210px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #26374d;
+  border-radius: 999px;
+  background: #0d1724;
+  color: #c3d3e3;
+  font: 800 9px var(--mono);
+  letter-spacing: 0.4px;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.squad-index-chip b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 92px;
+  color: #eaf3fb;
+  font-size: 10px;
+}
+.squad-index-rank {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: #16263a;
+  color: #9fb6cd;
+}
+.squad-index-pts {
+  color: #d8e6f2;
+}
+.squad-index-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4c6684;
+}
+.squad-index-dot.health-clean {
+  background: #a3d437;
+  box-shadow: 0 0 6px #a3d43780;
+}
+.squad-index-dot.health-damaged {
+  background: #f0b45f;
+  box-shadow: 0 0 6px #f0b45f80;
+}
+.squad-index-dot.health-out {
+  background: #ef6f78;
+  box-shadow: 0 0 6px #ef6f7880;
+}
+.squad-index-chip.health-out {
+  border-color: #4a2530;
+  color: #ffc4c9;
+}
+.squad-index-chip.health-damaged {
+  border-color: #4a3a22;
+}
+.squad-index-chip:hover {
+  border-color: #4c7a2f;
+  transform: translateY(-1px);
+}
+.squad-index-chip.collapsed {
+  opacity: 0.72;
+}
+
+/* ---------- Grid: everything visible, no paging ---------- */
+.live-team-grid {
+  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)) !important;
+  gap: 12px !important;
+}
+.squad-card-flash {
+  animation: squad-flash 1.2s ease;
+}
+@keyframes squad-flash {
+  0%,
+  100% {
+    box-shadow: var(--sq-shadow), inset 0 1px #ffffff0b;
+  }
+  20% {
+    box-shadow: 0 0 0 2px #a3d437, 0 20px 40px #0007;
+  }
+}
+
+/* ---------- Placement automation controls inside each card ---------- */
+.placement-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.placement-mode {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #3a5474;
+  background: #0f1c2b;
+  color: #a9c3da;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.7px;
+}
+.placement-block.auto .placement-mode {
+  border-color: #5c8433;
+  background: #16240f;
+  color: #d5ef9f;
+}
+.placement-block.manual .placement-mode {
+  border-color: #7a6031;
+  background: #241c0d;
+  color: #f6d79b;
+}
+.placement-auto-btn {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #35506f;
+  border-radius: 10px;
+  background: #101d2c;
+  color: #b9cee0;
+  font: 800 9px var(--mono);
+  letter-spacing: 0.6px;
+}
+.placement-auto-btn:hover {
+  border-color: #5fd0c4;
+  color: #d8fbf6;
+}
+.squad-stat.pending b {
+  color: #7e93aa;
+}
+.squad-stat.zero b {
+  color: #7e93aa;
+}
+.squad-stat.scoring b {
+  color: #ddf3ab;
+}
+.squad-card.premium .player-op-actions {
+  flex-wrap: wrap;
+}
+
+/* ---------- Compact density: 16 squads on one screen ---------- */
+.live-team-grid.density-compact {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+  gap: 10px !important;
+}
+.live-team-grid.density-compact .squad-card.premium {
+  border-radius: 12px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-card-head {
+  gap: 8px;
+  padding: 9px 11px;
+}
+.live-team-grid.density-compact .squad-crest {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.live-team-grid.density-compact .squad-rank {
+  width: 26px;
+  height: 26px;
+  font-size: 10px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-name b {
+  font-size: 12px;
+  max-width: min(30vw, 220px);
+}
+.live-team-grid.density-compact .squad-card.premium .squad-pts {
+  font-size: 20px !important;
+}
+.live-team-grid.density-compact .squad-health {
+  display: none;
+}
+.live-team-grid.density-compact .squad-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.live-team-grid.density-compact .squad-stat {
+  padding: 7px 10px;
+}
+.live-team-grid.density-compact .squad-stat b {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.live-team-grid.density-compact .squad-stat:nth-child(4) {
+  display: none;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-actions {
+  gap: 7px;
+  padding: 8px 11px;
+}
+.live-team-grid.density-compact .squad-card.premium .finish-plus,
+.live-team-grid.density-compact .squad-card.premium .squad-edit-btn,
+.live-team-grid.density-compact .placement-auto-btn {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 9px;
+}
+.live-team-grid.density-compact .squad-card.premium .finish-minus {
+  min-height: 30px;
+  width: 32px;
+}
+.live-team-grid.density-compact .squad-card.premium .placement-label {
+  min-height: 30px;
+  padding: 0 8px;
+}
+.live-team-grid.density-compact .squad-card.premium .placement-input {
+  width: 46px;
+  min-height: 22px;
+  font-size: 11px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-ops {
+  gap: 7px !important;
+  padding: 9px 11px 11px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op {
+  gap: 7px !important;
+  padding: 8px !important;
+}
+.live-team-grid.density-compact .player-avatar-mini {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op-head {
+  gap: 7px;
+  padding-bottom: 7px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op-head b {
+  font-size: 11px !important;
+}
+.live-team-grid.density-compact .player-chip-fin,
+.live-team-grid.density-compact .player-chip-dmg {
+  padding: 2px 5px;
+  font-size: 7px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-kill-plus,
+.live-team-grid.density-compact .squad-card.premium .player-kill-minus {
+  min-height: 28px;
+  font-size: 8px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-damage-control {
+  min-height: 28px;
+  padding: 0 7px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-damage-control input {
+  width: 50px;
+  min-height: 20px;
+  font-size: 10px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-statuses button {
+  min-height: 26px;
+  font: 800 8px var(--mono) !important;
+}
+@media (max-width: 720px) {
+  .live-team-grid,
+  .live-team-grid.density-compact {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .squad-index {
+    position: static;
   }
 }

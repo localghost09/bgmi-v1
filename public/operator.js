@@ -56,7 +56,6 @@ let state = null,
   registrations = [],
   activePage = "overview",
   collapsedSquads = new Set(),
-  squadPage = 1,
   standingsMode = "overall",
   registrationFilter = "pending",
   toastTimer,
@@ -531,17 +530,77 @@ function restoreGridFocus(info) {
     }
 }
 
+function placementPointsFor(team) {
+  const table = state.scoringRules?.placementPoints || {};
+  return Math.max(0, Number(table[String(Number(team.placement) || 0)]) || 0);
+}
+
+function pendingPlacements() {
+  const ids = new Set(state.matchTeamIds || []);
+  return state.teams.filter((t) => ids.has(t.id) && !(Number(t.placement) >= 1));
+}
+
+function placementsAreAuto(team) {
+  return team.placementAuto !== false && state.autoPlacements !== false;
+}
+
+function renderSquadIndex(teams) {
+  const strip = $("squadIndex");
+  if (!strip) return;
+  if (!teams.length) {
+    strip.innerHTML = "";
+    strip.classList.add("hidden");
+    return;
+  }
+  strip.classList.remove("hidden");
+  strip.innerHTML = teams
+    .map((t) => {
+      const health = squadHealth(t);
+      return `<button type="button" class="squad-index-chip health-${health.key}${collapsedSquads.has(Number(t.id)) ? " collapsed" : ""}" data-squad-jump="${t.id}" title="${safe(t.name)} · ${health.label}">
+        <span class="squad-index-rank">${String(t.placement || "–").padStart(2, "0")}</span>
+        <b>${safe(t.name)}</b>
+        <span class="squad-index-pts">${Number(t.matchPoints) || 0}</span>
+        <i class="squad-index-dot health-${health.key}"></i>
+      </button>`;
+    })
+    .join("");
+}
+
+function renderPlacementStatus() {
+  const status = $("lobbyPlacementStatus");
+  const toggle = $("autoPlacementsToggle");
+  if (!status) return;
+  const ids = new Set(state.matchTeamIds || []);
+  const lobby = state.teams.filter((t) => ids.has(t.id));
+  const alive = lobby.filter((t) => squadHealth(t).key !== "out");
+  const missing = pendingPlacements();
+  const autoMode = state.autoPlacements !== false;
+  if (toggle) {
+    toggle.textContent = autoMode ? "AUTO PLACEMENTS · ON" : "AUTO PLACEMENTS · OFF";
+    toggle.classList.toggle("on", autoMode);
+    toggle.classList.toggle("off", !autoMode);
+    toggle.setAttribute("aria-pressed", autoMode ? "true" : "false");
+  }
+  const nextPlace = alive.length;
+  const parts = [
+    `<b>${alive.length}</b> alive`,
+    `<b>${lobby.length - alive.length}</b> eliminated`,
+  ];
+  if (alive.length > 1)
+    parts.push(`next squad wiped takes <b>${nextPlace}th place</b>${nextPlace > 8 ? " · 0 placement points" : ""}`);
+  else if (alive.length === 1) parts.push("one squad left · winner already placed 1st");
+  else parts.push("lobby complete");
+  if (missing.length)
+    parts.push(`<span class="placement-warn">${missing.length} squad(s) still need a placement</span>`);
+  status.innerHTML = parts.join(' <span class="placement-sep">·</span> ');
+}
+
 function renderLiveTeams() {
   if (!state) return;
   renderLiveTeamCounts();
+  renderPlacementStatus();
   const teams = filteredLiveTeams();
   const grid = $("liveTeams");
-  const perPage = 8;
-  const totalPages = Math.max(1, Math.ceil(teams.length / perPage));
-  if (squadPage > totalPages) squadPage = totalPages;
-  if (squadPage < 1) squadPage = 1;
-  const pageTeams = teams.slice((squadPage - 1) * perPage, squadPage * perPage);
-  // Keep the operator's cursor in place when a live update redraws the grid.
   const focusInfo = captureGridFocus();
 
   grid.innerHTML = "";
@@ -549,29 +608,12 @@ function renderLiveTeams() {
     grid.innerHTML =
       '<div class="empty-state">No squads match this view. Clear the search, switch the status filter, or change the match lineup in Match setup.</div>';
   } else {
-    // Highlight the page order with a rank chip so the operator can read the lobby at a glance.
-    pageTeams.forEach((t, index) => {
-      const rank = (squadPage - 1) * perPage + index + 1;
-      grid.append(buildSquadCard(t, rank, teams.length));
-    });
+    // Every squad in the lobby is rendered on this single page — no paging.
+    teams.forEach((t, index) => grid.append(buildSquadCard(t, index + 1, teams.length)));
   }
-
+  renderSquadIndex(teams);
+  applyDensity();
   restoreGridFocus(focusInfo);
-  const ids = new Set(state.matchTeamIds || []);
-  const pager = $("liveTeamsPager");
-  if (!pager) return;
-  if (teams.length <= perPage) {
-    pager.classList.add("hidden");
-    pager.innerHTML = "";
-    return;
-  }
-  pager.classList.remove("hidden");
-  const start = (squadPage - 1) * perPage + 1;
-  const end = Math.min(teams.length, squadPage * perPage);
-  pager.innerHTML = `
-    <button class="squad-page-btn" data-squad-page="prev" ${squadPage === 1 ? "disabled" : ""}>← Prev</button>
-    <span class="squad-page-label">SQUADS <b>${start}–${end}</b> OF <b>${teams.length}</b> · ${ids.size} IN LOBBY</span>
-    <button class="squad-page-btn" data-squad-page="next" ${squadPage === totalPages ? "disabled" : ""}>Next →</button>`;
 }
 
 function buildSquadCard(t, rank, totalVisible) {
@@ -581,6 +623,9 @@ function buildSquadCard(t, rank, totalVisible) {
   const players = t.players || [];
   const alive = players.filter((p) => p.status === "alive").length;
   const knocked = players.filter((p) => p.status === "knocked").length;
+  const placement = Number(t.placement) || 0;
+  const auto = placementsAreAuto(t);
+  const placePts = placementPointsFor(t);
   const card = document.createElement("article");
   card.className = `squad-card premium ${collapsed ? "collapsed" : ""} health-${health.key}`;
   card.dataset.squadCard = String(t.id);
@@ -609,8 +654,8 @@ function buildSquadCard(t, rank, totalVisible) {
       </header>
       <div class="squad-summary">
         <span class="squad-stat"><small>FINISHES</small><b>${Number(t.kills) || 0}</b></span>
-        <span class="squad-stat"><small>PLACEMENT</small><b>${Number(t.placement) || "—"}</b></span>
-        <span class="squad-stat"><small>OVERALL</small><b>${Number(t.overallPoints) || 0}</b></span>
+        <span class="squad-stat ${placement ? "" : "pending"}"><small>PLACEMENT</small><b>${placement || "—"}</b></span>
+        <span class="squad-stat ${placePts ? "scoring" : "zero"}"><small>PLACE PTS</small><b>+${placePts}</b></span>
         <span class="squad-stat"><small>SQUAD STATE</small><b>${alive} ALIVE${knocked ? ` · ${knocked} KNOCK` : ""}</b></span>
       </div>
       <div class="squad-actions">
@@ -618,7 +663,13 @@ function buildSquadCard(t, rank, totalVisible) {
           <button class="finish-plus" data-action="plus" data-id="${t.id}">+ FINISH</button>
           <button class="finish-minus" data-action="minus" data-id="${t.id}" title="Remove one finish">−</button>
         </div>
-        <label class="placement-label">PLACE <input class="placement-input" type="number" min="0" max="${ids.size}" value="${Number(t.placement) || 0}" data-placement="${t.id}" aria-label="Placement for ${safe(t.name)}"></label>
+        <div class="placement-block ${auto ? "auto" : "manual"}">
+          <label class="placement-label">PLACE
+            <input class="placement-input" type="number" min="0" max="${ids.size}" value="${placement}" data-placement="${t.id}" aria-label="Placement for ${safe(t.name)}">
+          </label>
+          <span class="placement-mode" title="${auto ? "Derived from the elimination order" : "Typed in by the operator"}">${auto ? "AUTO" : "MANUAL"}</span>
+          ${auto ? "" : `<button class="placement-auto-btn" data-placement-auto="${t.id}" type="button" title="Hand this squad back to automatic placement">↺ AUTO</button>`}
+        </div>
         <button class="squad-edit-btn" data-action="edit" data-id="${t.id}">Edit roster</button>
       </div>
       <div class="player-ops">
@@ -761,9 +812,11 @@ $("liveTeams").addEventListener("click", (e) => {
 });
 $("liveTeams").addEventListener("change", (e) => {
   if (e.target.matches("[data-placement]"))
+    // placementAuto stays false: a typed placement wins over the automation
+    // until the operator resets that squad.
     socket.emit("team:update", {
       teamId: Number(e.target.dataset.placement),
-      updates: { placement: Number(e.target.value) },
+      updates: { placement: Number(e.target.value), placementAuto: false },
     });
   if (e.target.matches("[data-player-damage-team]"))
     socket.emit("player:damage", {
@@ -844,14 +897,12 @@ $("liveGroupFilter").addEventListener("change", () => {
       toast(`Loading Group ${filter} lineup…`);
     }
   }
-  squadPage = 1;
   renderLiveTeams();
   renderMatchTeamPicker();
 });
 /* --- Squad workspace controls: search, status filters, collapse and paging --- */
 $("liveTeamSearch").addEventListener("input", (e) => {
   liveSearchTerm = e.target.value || "";
-  squadPage = 1;
   renderLiveTeams();
 });
 $("liveStatusFilter")?.addEventListener("click", (e) => {
@@ -863,17 +914,90 @@ $("liveStatusFilter")?.addEventListener("click", (e) => {
     .forEach((b) =>
       b.classList.toggle("active", b.dataset.liveFilter === liveStatusFilter),
     );
-  squadPage = 1;
   renderLiveTeams();
 });
-$("liveTeamsPager").addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-squad-page]");
-  if (!btn) return;
-  squadPage += btn.dataset.squadPage === "next" ? 1 : -1;
-  renderLiveTeams();
+/* Card density: comfortable (full detail) or compact (everything on one screen). */
+const DENSITY_KEY = "bgmi.squadDensity";
+let squadDensity = "comfortable";
+try {
+  const stored = window.localStorage?.getItem(DENSITY_KEY);
+  if (stored === "compact" || stored === "comfortable") squadDensity = stored;
+} catch {
+  /* storage unavailable — keep the default */
+}
+function applyDensity() {
   const grid = $("liveTeams");
-  if (grid && typeof grid.scrollIntoView === "function")
-    grid.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (grid) grid.classList.toggle("density-compact", squadDensity === "compact");
+  $("densitySwitch")
+    ?.querySelectorAll("[data-density]")
+    .forEach((b) =>
+      b.classList.toggle("active", b.dataset.density === squadDensity),
+    );
+}
+$("densitySwitch").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-density]");
+  if (!btn) return;
+  squadDensity = btn.dataset.density;
+  try {
+    window.localStorage?.setItem(DENSITY_KEY, squadDensity);
+  } catch {
+    /* ignore */
+  }
+  applyDensity();
+});
+/* Fast jump from the lobby index straight to a squad card. */
+$("squadIndex").addEventListener("click", (e) => {
+  const chip = e.target.closest("[data-squad-jump]");
+  if (!chip) return;
+  const card = $("liveTeams").querySelector(
+    `[data-squad-card="${chip.dataset.squadJump}"]`,
+  );
+  if (!card) return;
+  if (collapsedSquads.has(Number(chip.dataset.squadJump))) {
+    collapsedSquads.delete(Number(chip.dataset.squadJump));
+    renderLiveTeams();
+  }
+  const target = $("liveTeams").querySelector(
+    `[data-squad-card="${chip.dataset.squadJump}"]`,
+  );
+  if (target && typeof target.scrollIntoView === "function")
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (target) {
+    target.classList.add("squad-card-flash");
+    setTimeout(() => target.classList.remove("squad-card-flash"), 1200);
+  }
+});
+/* Placement automation switches. */
+$("autoPlacementsToggle").addEventListener("click", () => {
+  if (state.matchStatus === "verified")
+    return toast("This match is verified.");
+  const enabled = state.autoPlacements === false;
+  socket.emit("placements:auto-mode", { enabled });
+  toast(
+    enabled
+      ? "Automatic placements on · positions 9–16 score zero placement points."
+      : "Automatic placements off · every placement is now typed in manually.",
+  );
+});
+$("resetAutoPlacements").addEventListener("click", () => {
+  if (state.matchStatus === "verified")
+    return toast("This match is verified.");
+  if (
+    !confirm(
+      "Rebuild every placement from the recorded elimination order? Typed-in placements will be replaced.",
+    )
+  )
+    return;
+  socket.emit("placements:reset-auto");
+});
+/* Per-squad: hand a typed placement back to the automation engine. */
+$("liveTeams").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-placement-auto]");
+  if (!btn) return;
+  socket.emit("team:update", {
+    teamId: Number(btn.dataset.placementAuto),
+    updates: { placementAuto: true },
+  });
 });
 $("liveTeams").addEventListener("click", (e) => {
   const toggle = e.target.closest("[data-squad-toggle]");

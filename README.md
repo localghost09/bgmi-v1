@@ -55,13 +55,37 @@ The live workspace is split into two dedicated pages so a match is easier to run
   **Start match** verifies the lineup, starts the match and drops you straight onto this page, where
   every selected squad has one premium card holding its match points, finishes, placement and the four
   player tiles (finish, damage and Alive / Knock / Out status).
-- Squad cards follow your saved lineup order and never reorder while you are entering scores; a
-  *SQUADS 1–8 of 16* pager shows eight cards per page, and cards can be collapsed individually or all
-  at once. `Search`, the `All / Active / Eliminated` filter chips and the pager all work on top of the
-  same controls.
-- Nothing about the tournament logic changed: every button and field emits exactly the same socket
-  events (`team:kill`, `player:update`, `player:damage`, `player:kill`, `team:update`, `match:confirm`,
-  `match:status`, `match:finalize`) and the verify flow still lives on the live page.
+- **All 16 squads render on one page** — no paging, no *Next* button to reach squads 9–16. Each card
+  follows your saved lineup order and never reorders while you are entering scores.
+- A sticky **lobby index** strip lists every squad with its placement, points and health dot; click a
+  chip to jump straight to that squad card. `Search`, the `All / Active / Eliminated` filter chips and
+  per-squad / bulk collapse narrow the page further.
+- **Comfortable / Compact** density switch: compact drops the chrome and shrinks the cards so the whole
+  16-squad lobby is visible at a glance (the choice is remembered in the browser).
+
+## Automatic placements (positions 9–16 score zero, by rule)
+
+Placements no longer have to be typed in one squad at a time:
+
+1. When a squad's fourth player is marked **OUT**, the server records the elimination and immediately
+   derives the placement — the first squad wiped from a 16-squad lobby is **16th**, the next is **15th**,
+   and so on. Positions 9–16 resolve to **0 placement points** straight from the scoring table.
+2. The last squad standing is placed **1st** automatically and banks the chicken-dinner placement points.
+3. A squad's card shows `AUTO` next to its placement, plus a `PLACE PTS` figure (`+0` for 9th–16th,
+   `+1` for 8th, and so on), so the rule is visible while you work.
+4. **Manual override for re-verification stays available.** Typing a placement pins that squad to
+   `MANUAL` and it is never overwritten — the automation keeps recomputing every other squad around it.
+   Press `↺ AUTO` on the card, or `↺ Re-derive placements` in the toolbar, to hand it back.
+5. The toolbar states what is at stake (`12 alive · next squad wiped takes 5th place`), and warns when
+   squads still need a placement. `AUTO PLACEMENTS · ON/OFF` switches the whole lobby to fully manual
+   entry, and a match that ends with squads still alive is reported by the existing verify checks so the
+   operator can type the remaining positions before publishing.
+- The verify flow is unchanged: an operator still presses *Verify & publish* and the server validates
+  unique placements before locking the result snapshot — placements are now correct by default instead of
+  by hand.
+- Two socket events were added for the automation (`placements:auto-mode`, `placements:reset-auto`); all
+  existing events (`team:kill`, `player:update`, `player:damage`, `player:kill`, `team:update`,
+  `match:configure`, `match:status`, `match:finalize`) behave exactly as before.
 
 ## Skip the login while developing (open the dashboard directly)
 
