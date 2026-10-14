@@ -5264,6 +5264,19 @@ body {
 .live-team-grid[data-cols="auto"] {
   grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)) !important;
 }
+/* Re-asserted after the legacy 980px/720px rules so a chosen 2-up layout is not
+   silently collapsed on a laptop or a split-screen view. */
+@media (min-width: 760px) {
+  .live-team-grid[data-cols="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .live-team-grid[data-cols="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .live-team-grid[data-cols="1"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
 
 /* ---------- Roster strips: one row per player (grid modes 2 and 3) ---------- */
 .live-team-grid.density-compact .squad-card.premium .player-ops {
@@ -5280,9 +5293,10 @@ body {
   border-radius: 9px !important;
 }
 .live-team-grid.density-compact .squad-card.premium .player-op-head {
-  flex: 1 1 168px;
+  /* Small basis so a panel stays one line tall even at ~300px wide. */
+  flex: 1 1 118px;
   min-width: 0;
-  gap: 8px;
+  gap: 7px;
   padding-bottom: 0;
   border-bottom: 0;
 }
@@ -5449,18 +5463,31 @@ body {
   padding: 8px 10px;
 }
 
-/* ---------- Narrow operator screens always fall back to one column ---------- */
-@media (max-width: 1150px) {
-  .live-team-grid[data-cols="2"],
-  .live-team-grid[data-cols="3"] {
+/* ---------- Very small screens: a single column, everything else is JS ---------- */
+@media (max-width: 759px) {
+  .live-team-grid[data-cols] {
     grid-template-columns: minmax(0, 1fr) !important;
   }
-}
-@media (max-width: 720px) {
-  .live-team-grid[data-cols="auto"] {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-  .seg-switch-label {
+  .seg-switch-label,
+  .seg-switch-readout {
     display: none;
   }
+}
+
+/* ---------- Layout readout: "2 × 8" ---------- */
+.seg-switch-readout {
+  margin-left: 2px;
+  padding: 0 9px;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  border-left: 1px solid #26374d;
+  color: #a9c3da;
+  font: 800 9px var(--mono);
+  letter-spacing: 0.7px;
+  white-space: nowrap;
+}
+.seg-switch-readout.narrowed,
+.seg-switch.narrowed .seg-switch-readout {
+  color: #f6d79b;
 }

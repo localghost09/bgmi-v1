@@ -439,13 +439,19 @@
                       role="group"
                       aria-label="Squad grid columns"
                     >
-                      <span class="seg-switch-label">GRID</span>
+                      <span class="seg-switch-label" title="How many squad panels sit side by side">PANELS</span>
                       <button type="button" data-columns="auto">Auto</button>
                       <button type="button" data-columns="1">1</button>
                       <button type="button" data-columns="2" class="active">
                         2
                       </button>
                       <button type="button" data-columns="3">3</button>
+                      <span
+                        class="seg-switch-readout"
+                        id="columnsReadout"
+                        title="Columns × rows for the squads currently shown"
+                        >2 × 8</span
+                      >
                     </div>
                     <div
                       class="seg-switch"
@@ -453,11 +459,20 @@
                       role="group"
                       aria-label="Card density"
                     >
-                      <button type="button" data-density="comfortable">
-                        Comfortable
+                      <button
+                        type="button"
+                        data-density="comfortable"
+                        title="Taller cards with the four players stacked as tiles"
+                      >
+                        Full cards
                       </button>
-                      <button type="button" data-density="compact" class="active">
-                        Compact
+                      <button
+                        type="button"
+                        data-density="compact"
+                        class="active"
+                        title="One row per player — about a third shorter"
+                      >
+                        Short cards
                       </button>
                     </div>
                     <button class="btn btn-small" id="expandAllSquads">

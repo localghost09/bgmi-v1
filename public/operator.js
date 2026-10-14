@@ -614,6 +614,7 @@ function renderLiveTeams() {
   renderSquadIndex(teams);
   applyDensity();
   applyColumns();
+  renderColumnReadout(teams.length);
   restoreGridFocus(focusInfo);
 }
 
@@ -948,15 +949,69 @@ function applyDensity() {
       b.classList.toggle("active", b.dataset.density === squadDensity),
     );
 }
+/* An explicit choice is honoured on every screen wide enough to hold the
+   panels; only a genuinely tiny viewport drops to a single column. This is why
+   "2" means two squads side by side (2 x 8 for a 16-squad lobby) instead of
+   silently collapsing to one column on a laptop or a split screen. */
+const COLUMN_MIN_VIEWPORT = { 2: 760, 3: 1180 };
+function viewportWidth() {
+  return (
+    window.document.documentElement.clientWidth ||
+    window.innerWidth ||
+    1440
+  );
+}
+function effectiveColumns() {
+  const vw = viewportWidth();
+  if (squadColumns === "1") return 1;
+  if (squadColumns === "2") return vw >= COLUMN_MIN_VIEWPORT[2] ? 2 : 1;
+  if (squadColumns === "3")
+    return vw >= COLUMN_MIN_VIEWPORT[3] ? 3 : vw >= COLUMN_MIN_VIEWPORT[2] ? 2 : 1;
+  // Auto: responsive auto-fill around a 430px panel.
+  const grid = $("liveTeams");
+  const width = grid && grid.clientWidth ? grid.clientWidth : vw - 300;
+  return Math.max(1, Math.min(4, Math.floor((width + 12) / 442)));
+}
 function applyColumns() {
   const grid = $("liveTeams");
-  if (grid) grid.dataset.cols = squadColumns;
+  const cols = effectiveColumns();
+  if (grid) grid.dataset.cols = String(cols);
   $("columnsSwitch")
     ?.querySelectorAll("[data-columns]")
     .forEach((b) =>
       b.classList.toggle("active", b.dataset.columns === squadColumns),
     );
+  const narrowed = Number(squadColumns) > cols && squadColumns !== "auto";
+  const switchEl = $("columnsSwitch");
+  if (switchEl) switchEl.classList.toggle("narrowed", narrowed);
+  return cols;
 }
+/* Reports the exact panel shape the operator is looking at, e.g. "2 x 8". */
+function renderColumnReadout(visibleCount) {
+  const el = $("columnsReadout");
+  if (!el) return;
+  const cols = Number($("liveTeams").dataset.cols) || 1;
+  const rows = Math.max(1, Math.ceil(visibleCount / cols));
+  el.textContent = `${cols} × ${rows}`;
+  el.classList.toggle(
+    "narrowed",
+    Number(squadColumns) > cols && squadColumns !== "auto",
+  );
+  el.title =
+    Number(squadColumns) > cols && squadColumns !== "auto"
+      ? `Your screen fits ${cols} panel(s) side by side — showing ${cols} × ${rows}. Widen the window for ${squadColumns} columns.`
+      : `Columns × rows for the squads currently shown (${cols} × ${rows})`;
+}
+/* Keep the layout honest when the operator resizes or splits the screen. */
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (!state) return;
+    applyColumns();
+    renderColumnReadout(filteredLiveTeams().length);
+  }, 120);
+});
 $("columnsSwitch").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-columns]");
   if (!btn) return;
@@ -967,6 +1022,7 @@ $("columnsSwitch").addEventListener("click", (e) => {
     /* ignore */
   }
   applyColumns();
+  renderColumnReadout(filteredLiveTeams().length);
 });
 $("densitySwitch").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-density]");
