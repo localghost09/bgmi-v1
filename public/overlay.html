@@ -213,7 +213,7 @@
           </div>
           <div class="standings-heading">
             <h1 id="cardTitle">OVERALL STANDINGS</h1>
-            <span id="cardPageKicker">LIVE DATA GRID // TABLE 01 OF 02</span>
+            <span id="cardPageKicker">TACTICAL DATA GRID // LEFT 01–08 · RIGHT 09–16</span>
           </div>
           <div class="standings-brand">
             <div class="standings-decode">
@@ -224,12 +224,24 @@
             <strong id="cardEvent">BGMI BROADCAST</strong><i></i>
           </div>
         </div>
-        <div class="full-title">
-          <span>#</span><span>TEAM NAME</span><span>WINS</span
-          ><span>MAT. PLAYED</span><span>FINISHES</span><span>POS. POINTS</span
-          ><span>TOTAL PTS.</span>
+        <div class="full-columns" id="fullColumns">
+          <div class="full-half" id="fullHalfLeft">
+            <div class="full-title">
+              <span>#</span><span>TEAM NAME</span><span>WINS</span
+              ><span>MAT. PLAYED</span><span>FINISHES</span
+              ><span>POS. POINTS</span><span>TOTAL PTS.</span>
+            </div>
+            <div id="fullRows" class="full-rows"></div>
+          </div>
+          <div class="full-half" id="fullHalfRight">
+            <div class="full-title">
+              <span>#</span><span>TEAM NAME</span><span>WINS</span
+              ><span>MAT. PLAYED</span><span>FINISHES</span
+              ><span>POS. POINTS</span><span>TOTAL PTS.</span>
+            </div>
+            <div id="fullRowsRight" class="full-rows"></div>
+          </div>
         </div>
-        <div id="fullRows" class="full-rows"></div>
         <div class="standings-footer">
           <span id="fullCardFootLeft"
             >TOURNAMENT OPERATIONS // VERIFIED DATA</span
@@ -240,7 +252,7 @@
             ><span><i class="legend-c"></i> GROUP C</span
             ><span><i class="legend-d"></i> GROUP D+</span>
           </div>
-          <b id="fullPageReadout">TEAMS 01–08 / 16</b>
+          <b id="fullPageReadout">TEAMS 01–16 / 16</b>
         </div>
       </section>
       <section
