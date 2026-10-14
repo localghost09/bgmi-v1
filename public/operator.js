@@ -11,6 +11,15 @@ async function loadOperatorIdentity() {
       return;
     }
     const payload = await response.json();
+    // Development login bypass: the server hands out an admin session, so the
+    // sign-out button would only drop us back onto the same dashboard.
+    if (payload.loginBypass) {
+      const logout = $("logoutBtn");
+      if (logout) {
+        logout.style.display = "none";
+        logout.setAttribute("aria-hidden", "true");
+      }
+    }
     const username = payload.user?.username || "Operator";
     const name = $("operatorName");
     if (name) name.textContent = username;
@@ -46,6 +55,7 @@ loadOperatorIdentity();
 let state = null,
   registrations = [],
   activePage = "overview",
+  collapsedSquads = new Set(),
   standingsMode = "overall",
   registrationFilter = "pending",
   toastTimer,
@@ -58,10 +68,15 @@ const pageMeta = {
     "Production overview",
     "Monitor match operations, scoring and broadcast readiness.",
   ],
-  live: [
+  "match-setup": [
+    "MATCH SETUP",
+    "Match setup & squad selection",
+    "Configure the lobby, map and the 16-squad lineup for this match.",
+  ],
+  "live-controls": [
     "LIVE OPERATIONS",
-    "Live match operations",
-    "Record live events, manage squads and verify results.",
+    "Live squad controls",
+    "One workspace for finishes, player status, damage and roster edits.",
   ],
   teams: [
     "TEAMS & GROUPS",
@@ -133,7 +148,10 @@ function sortedCurrent() {
       a.name.localeCompare(b.name),
   );
 }
+// "live" was a single combined page before the squad-control split.
+const PAGE_ALIASES = { live: "live-controls" };
 function showPage(page) {
+  page = PAGE_ALIASES[page] || page;
   if (!pageMeta[page]) return;
   activePage = page;
   document
@@ -226,9 +244,24 @@ function render() {
       "AWAITING VERIFICATION": "Review scores before publishing",
       VERIFIED: "Official results are locked",
     }[status] || "Match status";
-  $("matchStatusPill").textContent = `● ${status}`;
+  const statusPillState =
+    status === "LIVE"
+      ? "live"
+      : status === "VERIFIED"
+        ? "verified"
+        : status === "AWAITING VERIFICATION"
+          ? "review"
+          : "upcoming";
+  ["matchSetupStatusPill", "liveControlsStatusPill"].forEach((id) => {
+    const pill = $(id);
+    if (!pill) return;
+    pill.textContent = `● ${status}`;
+    pill.classList.remove("live", "verified", "review", "upcoming");
+    pill.classList.add(statusPillState);
+  });
   $("liveNavStatus").textContent =
     status === "LIVE" ? "ON AIR" : status === "VERIFIED" ? "LOCKED" : "READY";
+  renderSetupBar(status);
   $("onAirText").textContent = (state.broadcastState || "pre-show")
     .toUpperCase()
     .replaceAll("-", " ");
@@ -364,82 +397,314 @@ function selectedMatchIds() {
       : state?.matchTeamIds || []
   ).map(Number);
 }
-function renderLiveTeams() {
+/* ---------------------------------------------------------------------------
+   Premium squad workspace.
+   The controls, data attributes and emitted socket events are unchanged; this
+   only reorganises how the same match inputs are presented and filtered.
+--------------------------------------------------------------------------- */
+let liveStatusFilter = "all";
+let liveSearchTerm = "";
+
+function squadHealth(t) {
+  const players = t.players || [];
+  const eliminated = players.filter((p) => p.status === "eliminated").length;
+  if (eliminated >= players.length && players.length)
+    return { key: "out", label: "ELIMINATED", short: "ELIM" };
+  if (eliminated > 0 || players.some((p) => p.status === "knocked"))
+    return { key: "damaged", label: "IN FIGHT", short: "FIGHT" };
+  if (Number(t.kills) > 0 || Number(t.placement) > 0)
+    return { key: "damaged", label: "SCORING", short: "SCORE" };
+  return { key: "clean", label: "FULL SQUAD", short: "ALIVE" };
+}
+
+function filteredLiveTeams() {
   const filter = $("liveGroupFilter").value || "all";
   const ids = new Set(state.matchTeamIds || []);
-  const teams = state.teams.filter(
+  const lineupOrder = state.matchTeamIds || [];
+  const idsOrder = (t) => {
+    const index = lineupOrder.indexOf(t.id);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  const q = liveSearchTerm.trim().toLowerCase();
+  return state.teams
+    .filter((t) => ids.has(t.id) && (filter === "all" || t.group === filter))
+    .filter((t) => {
+      if (q && !t.name.toLowerCase().includes(q) && !String(t.id).includes(q))
+        return false;
+      const health = squadHealth(t);
+      if (liveStatusFilter === "live") return health.key !== "out";
+      if (liveStatusFilter === "finished") return health.key === "out";
+      return true;
+    })
+    // Keep the operator's saved lineup order: cards must never jump around
+    // while finishes and placements are being entered during a live match.
+    .sort((a, b) => idsOrder(a) - idsOrder(b));
+}
+
+function renderSetupBar(status) {
+  const title = $("setupBarTitle");
+  const meta = $("setupBarMeta");
+  if (!title || !meta) return;
+  const ids = (pendingMatchTeamIds !== null ? pendingMatchTeamIds : state.matchTeamIds || []).length;
+  const saved = (state.matchTeamIds || []).length;
+  const dirtyNote = lineupDirty
+    ? " · unsaved lineup changes"
+    : ids !== saved
+      ? " · lineup not saved yet"
+      : "";
+  title.textContent =
+    status === "LIVE"
+      ? `Match ${String(state.currentMatch).padStart(2, "0")} is live`
+      : status === "VERIFIED"
+        ? `Match ${String(state.currentMatch).padStart(2, "0")} results are locked`
+        : `Ready to start Match ${String(state.currentMatch).padStart(2, "0")}`;
+  const group = String(state.currentGroup || "A");
+  const groupLabel = ["A", "B", "C", "D", "E", "F"].includes(group.toUpperCase())
+    ? `Group ${group.toUpperCase()}`
+    : group;
+  meta.textContent = `${groupLabel} · ${state.currentMap || "Erangel"} · ${ids} squad(s) selected${dirtyNote}`;
+}
+
+function renderLiveTeamCounts() {
+  const filter = $("liveGroupFilter").value || "all";
+  const ids = new Set(state.matchTeamIds || []);
+  const inLobby = state.teams.filter(
     (t) => ids.has(t.id) && (filter === "all" || t.group === filter),
   );
-  $("liveTeamCount").textContent = `${teams.length} / ${ids.size} SQUADS`;
-  $("liveTeams").innerHTML = "";
+  const out = inLobby.filter((t) => squadHealth(t).key === "out").length;
+  const count = $("liveTeamCount");
+  if (count) count.textContent = `${inLobby.length} / ${ids.size} SQUADS`;
+  const set = (id, value) => {
+    const el = $(id);
+    if (el) el.textContent = value;
+  };
+  set("liveFilterAllCount", inLobby.length);
+  set("liveFilterActiveCount", inLobby.length - out);
+  set("liveFilterOutCount", out);
+}
+
+function playerStatsChips(p, kills) {
+  return `<span class="player-chip-fin">${kills} FIN</span>
+    <span class="player-chip-dmg">${Number(p.damage) || 0} DMG</span>`;
+}
+
+function refreshSetupBar() {
+  if (!state) return;
+  renderSetupBar(
+    (state.matchStatus || "upcoming").toUpperCase().replaceAll("-", " "),
+  );
+}
+
+function captureGridFocus() {
+  const el = window.document.activeElement;
+  if (!el || typeof el.closest !== "function" || !el.closest("#liveTeams"))
+    return null;
+  const placement = el.getAttribute?.("data-placement");
+  const damageTeam = el.getAttribute?.("data-player-damage-team");
+  const damageIndex = el.getAttribute?.("data-player-damage-index");
+  const selector = placement
+    ? `[data-placement="${placement}"]`
+    : damageTeam !== null && damageIndex !== null
+      ? `[data-player-damage-team="${damageTeam}"][data-player-damage-index="${damageIndex}"]`
+      : null;
+  if (!selector || !("value" in el)) return null;
+  return {
+    selector,
+    value: el.value,
+    start: el.selectionStart,
+    end: el.selectionEnd,
+  };
+}
+
+function restoreGridFocus(info) {
+  if (!info) return;
+  const el = $("liveTeams")?.querySelector(info.selector);
+  if (!el || !("value" in el)) return;
+  el.value = info.value;
+  el.focus();
+  if (typeof el.setSelectionRange === "function" && info.start !== null)
+    try {
+      el.setSelectionRange(info.start, info.end);
+    } catch {
+      /* not a text-selectable input */
+    }
+}
+
+function placementPointsFor(team) {
+  const table = state.scoringRules?.placementPoints || {};
+  return Math.max(0, Number(table[String(Number(team.placement) || 0)]) || 0);
+}
+
+function pendingPlacements() {
+  const ids = new Set(state.matchTeamIds || []);
+  return state.teams.filter((t) => ids.has(t.id) && !(Number(t.placement) >= 1));
+}
+
+function placementsAreAuto(team) {
+  return team.placementAuto !== false && state.autoPlacements !== false;
+}
+
+function renderSquadIndex(teams) {
+  const strip = $("squadIndex");
+  if (!strip) return;
   if (!teams.length) {
-    $("liveTeams").innerHTML =
-      '<div class="empty-state">No squads match this filter. Set the match lineup above or change the filter.</div>';
+    strip.innerHTML = "";
+    strip.classList.add("hidden");
     return;
   }
-  teams.forEach((t) => {
-    const card = document.createElement("article");
-    card.className = "squad-card";
-    card.innerHTML = `
+  strip.classList.remove("hidden");
+  strip.innerHTML = teams
+    .map((t) => {
+      const health = squadHealth(t);
+      return `<button type="button" class="squad-index-chip health-${health.key}${collapsedSquads.has(Number(t.id)) ? " collapsed" : ""}" data-squad-jump="${t.id}" title="${safe(t.name)} · ${health.label}">
+        <span class="squad-index-rank">${String(t.placement || "–").padStart(2, "0")}</span>
+        <b>${safe(t.name)}</b>
+        <span class="squad-index-pts">${Number(t.matchPoints) || 0}</span>
+        <i class="squad-index-dot health-${health.key}"></i>
+      </button>`;
+    })
+    .join("");
+}
+
+function renderPlacementStatus() {
+  const status = $("lobbyPlacementStatus");
+  const toggle = $("autoPlacementsToggle");
+  if (!status) return;
+  const ids = new Set(state.matchTeamIds || []);
+  const lobby = state.teams.filter((t) => ids.has(t.id));
+  const alive = lobby.filter((t) => squadHealth(t).key !== "out");
+  const missing = pendingPlacements();
+  const autoMode = state.autoPlacements !== false;
+  if (toggle) {
+    toggle.textContent = autoMode ? "AUTO PLACEMENTS · ON" : "AUTO PLACEMENTS · OFF";
+    toggle.classList.toggle("on", autoMode);
+    toggle.classList.toggle("off", !autoMode);
+    toggle.setAttribute("aria-pressed", autoMode ? "true" : "false");
+  }
+  const nextPlace = alive.length;
+  const parts = [
+    `<b>${alive.length}</b> alive`,
+    `<b>${lobby.length - alive.length}</b> eliminated`,
+  ];
+  if (alive.length > 1)
+    parts.push(`next squad wiped takes <b>${nextPlace}th place</b>${nextPlace > 8 ? " · 0 placement points" : ""}`);
+  else if (alive.length === 1) parts.push("one squad left · winner already placed 1st");
+  else parts.push("lobby complete");
+  if (missing.length)
+    parts.push(`<span class="placement-warn">${missing.length} squad(s) still need a placement</span>`);
+  status.innerHTML = parts.join(' <span class="placement-sep">·</span> ');
+}
+
+function renderLiveTeams() {
+  if (!state) return;
+  renderLiveTeamCounts();
+  renderPlacementStatus();
+  const teams = filteredLiveTeams();
+  const grid = $("liveTeams");
+  const focusInfo = captureGridFocus();
+
+  grid.innerHTML = "";
+  if (!teams.length) {
+    grid.innerHTML =
+      '<div class="empty-state">No squads match this view. Clear the search, switch the status filter, or change the match lineup in Match setup.</div>';
+  } else {
+    // Every squad in the lobby is rendered on this single page — no paging.
+    teams.forEach((t, index) => grid.append(buildSquadCard(t, index + 1, teams.length)));
+  }
+  renderSquadIndex(teams);
+  applyDensity();
+  applyColumns();
+  renderColumnReadout(teams.length);
+  restoreGridFocus(focusInfo);
+}
+
+function buildSquadCard(t, rank, totalVisible) {
+  const ids = new Set(state.matchTeamIds || []);
+  const health = squadHealth(t);
+  const collapsed = collapsedSquads.has(Number(t.id));
+  const players = t.players || [];
+  const alive = players.filter((p) => p.status === "alive").length;
+  const knocked = players.filter((p) => p.status === "knocked").length;
+  const placement = Number(t.placement) || 0;
+  const auto = placementsAreAuto(t);
+  const placePts = placementPointsFor(t);
+  const card = document.createElement("article");
+  card.className = `squad-card premium ${collapsed ? "collapsed" : ""} health-${health.key}`;
+  card.dataset.squadCard = String(t.id);
+  card.innerHTML = `
       <header class="squad-card-head">
         <div class="squad-identity">
-          <span class="squad-id">#${String(t.id).padStart(2, "0")}</span>
-          ${t.logo ? `<img class="squad-logo" src="${safe(t.logo)}" alt="" onerror="this.style.display='none'">` : ""}
+          <span class="squad-rank" title="Position in this lobby view">${String(rank).padStart(2, "0")}</span>
+          <span class="squad-crest">
+            ${t.logo ? `<img src="${safe(t.logo)}" alt="" onerror="this.remove()">` : `<i>${safe((t.name || "?").trim().charAt(0).toUpperCase())}</i>`}
+          </span>
           <div class="squad-name">
-            <small>ACTIVE SQUAD</small>
+            <small>SQUAD #${String(t.id).padStart(2, "0")} · GROUP ${safe(t.group || "A")}</small>
             <b title="${safe(t.name)}">${safe(t.name)}</b>
+            <span class="squad-health health-${health.key}">${health.label}</span>
           </div>
         </div>
-        <div class="squad-score">
-          <small>MATCH POINTS</small>
-          <strong class="squad-pts">${t.matchPoints}</strong>
+        <div class="squad-head-right">
+          <div class="squad-score">
+            <small>MATCH PTS</small>
+            <strong class="squad-pts">${Number(t.matchPoints) || 0}</strong>
+          </div>
+          <button class="squad-collapse" data-squad-toggle="${t.id}" type="button" aria-expanded="${collapsed ? "false" : "true"}" title="Show or hide squad detail">
+            ${collapsed ? "▸" : "▾"}
+          </button>
         </div>
       </header>
-      <div class="squad-badges">
-        <span class="group-chip">GROUP ${safe(t.group || "A")}</span>
-        ${t.registered ? '<span class="registered-chip">VERIFIED ROSTER</span>' : '<span class="placeholder-chip">ROSTER SLOT</span>'}
-      </div>
-      <div class="squad-stats">
-        <span><small>FINISHES</small><b>${t.kills}</b></span>
-        <span><small>PLACEMENT</small><b>${t.placement || "—"}</b></span>
-        <span><small>OVERALL</small><b>${t.overallPoints || 0}</b></span>
+      <div class="squad-summary">
+        <span class="squad-stat"><small>FINISHES</small><b>${Number(t.kills) || 0}</b></span>
+        <span class="squad-stat ${placement ? "" : "pending"}"><small>PLACEMENT</small><b>${placement || "—"}</b></span>
+        <span class="squad-stat ${placePts ? "scoring" : "zero"}"><small>PLACE PTS</small><b>+${placePts}</b></span>
+        <span class="squad-stat"><small>SQUAD STATE</small><b>${alive} ALIVE${knocked ? ` · ${knocked} KNOCK` : ""}</b></span>
       </div>
       <div class="squad-actions">
-        <span class="control-label">MATCH INPUTS</span>
-        <div class="mini-actions">
-          <button class="finish-plus" data-action="plus" data-id="${t.id}">+ UNASSIGNED FINISH</button>
-          <button class="finish-minus" data-action="minus" data-id="${t.id}">−</button>
-          <label class="placement-label">PLACE <input class="placement-input" type="number" min="0" max="${ids.size}" value="${t.placement || 0}" data-placement="${t.id}" aria-label="Placement for ${safe(t.name)}"></label>
-          <button data-action="edit" data-id="${t.id}">EDIT ROSTER</button>
+        <div class="squad-finish-block">
+          <button class="finish-plus" data-action="plus" data-id="${t.id}">+ FINISH</button>
+          <button class="finish-minus" data-action="minus" data-id="${t.id}" title="Remove one finish">−</button>
         </div>
+        <div class="placement-block ${auto ? "auto" : "manual"}">
+          <label class="placement-label">PLACE
+            <input class="placement-input" type="number" min="0" max="${ids.size}" value="${placement}" data-placement="${t.id}" aria-label="Placement for ${safe(t.name)}">
+          </label>
+          <span class="placement-mode" title="${auto ? "Derived from the elimination order" : "Typed in by the operator"}">${auto ? "AUTO" : "MANUAL"}</span>
+          ${auto ? "" : `<button class="placement-auto-btn" data-placement-auto="${t.id}" type="button" title="Hand this squad back to automatic placement">↺ AUTO</button>`}
+        </div>
+        <button class="squad-edit-btn" data-action="edit" data-id="${t.id}">Edit roster</button>
       </div>
       <div class="player-ops">
-        ${t.players.map((p, i) => `
-          <div class="player-op">
+        ${players
+          .map(
+            (p, i) => `
+          <div class="player-op status-${safe(p.status)}">
             <div class="player-op-head">
-              ${p.avatarUrl ? `<img class="player-avatar-mini" src="${safe(p.avatarUrl)}" alt="" onerror="this.style.display='none'">` : ""}
-              <div>
+              ${p.avatarUrl ? `<img class="player-avatar-mini" src="${safe(p.avatarUrl)}" alt="" onerror="this.remove()">` : `<span class="player-avatar-mini fallback">${safe((p.name || "P").trim().charAt(0).toUpperCase())}</span>`}
+              <div class="player-op-id">
                 <small>PLAYER ${String(i + 1).padStart(2, "0")}</small>
-                <b>${safe(p.name)}</b>
+                <b title="${safe(p.name)} · UID ${safe(p.uid || "not entered")}">${safe(p.name)}</b>
                 <small class="player-uid-note">UID ${safe(p.uid || "NOT ENTERED")}</small>
               </div>
-              <strong class="player-kill-count">${Number(p.kills) || 0} FIN</strong>
+              <div class="player-op-fin">${playerStatsChips(p, Number(p.kills) || 0)}</div>
             </div>
             <div class="player-op-actions">
-              <button class="player-kill-plus" data-player-kill-team="${t.id}" data-player-kill-index="${i}" data-amount="1">+ PLAYER FINISH</button>
+              <button class="player-kill-plus" data-player-kill-team="${t.id}" data-player-kill-index="${i}" data-amount="1">+ FINISH</button>
               <button class="player-kill-minus" data-player-kill-team="${t.id}" data-player-kill-index="${i}" data-amount="-1">−</button>
               <label class="player-damage-control">DMG <input type="number" min="0" max="50000" step="1" value="${Number(p.damage) || 0}" data-player-damage-team="${t.id}" data-player-damage-index="${i}" aria-label="Damage for ${safe(p.name)}"></label>
             </div>
             <div class="player-statuses">
               <button class="alive ${p.status === "alive" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="alive">ALIVE</button>
               <button class="knocked ${p.status === "knocked" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="knocked">KNOCK</button>
-              <button class="eliminated ${p.status === "eliminated" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="eliminated">OUT</button>
+              <button class="eliminated ${p.status === "eliminated" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="eliminated">ELIM</button>
             </div>
-          </div>`).join("")}
+          </div>`,
+          )
+          .join("")}
       </div>`;
-    $("liveTeams").append(card);
-  });
+  return card;
 }
+
 function renderMatchTeamPicker() {
   if (!state) return;
   const q = ($("lineupSearch")?.value || "").toLowerCase();
@@ -490,6 +755,7 @@ $("lineupTeamPicker").addEventListener("change", (e) => {
   pendingMatchTeamIds = [...set];
   lineupDirty = true;
   renderMatchTeamPicker();
+  refreshSetupBar();
 });
 $("lineupSearch").addEventListener("input", renderMatchTeamPicker);
 $("loadGroupLineup").addEventListener("click", () => {
@@ -513,11 +779,13 @@ $("loadGroupLineup").addEventListener("click", () => {
   pendingMatchTeamIds = teams.map((t) => t.id);
   lineupDirty = true;
   renderMatchTeamPicker();
+  refreshSetupBar();
 });
 $("clearLineup").addEventListener("click", () => {
   pendingMatchTeamIds = [];
   lineupDirty = true;
   renderMatchTeamPicker();
+  refreshSetupBar();
 });
 $("liveTeams").addEventListener("click", (e) => {
   const b = e.target.closest("button");
@@ -545,11 +813,15 @@ $("liveTeams").addEventListener("click", (e) => {
   }
 });
 $("liveTeams").addEventListener("change", (e) => {
-  if (e.target.matches("[data-placement]"))
+  if (e.target.matches("[data-placement]")) {
+    const value = Number(e.target.value);
+    // A typed placement wins over the automation until the operator resets that
+    // squad; clearing the field back to 0 hands it straight back to the engine.
     socket.emit("team:update", {
       teamId: Number(e.target.dataset.placement),
-      updates: { placement: Number(e.target.value) },
+      updates: { placement: value, placementAuto: value < 1 },
     });
+  }
   if (e.target.matches("[data-player-damage-team]"))
     socket.emit("player:damage", {
       teamId: Number(e.target.dataset.playerDamageTeam),
@@ -632,6 +904,227 @@ $("liveGroupFilter").addEventListener("change", () => {
   renderLiveTeams();
   renderMatchTeamPicker();
 });
+/* --- Squad workspace controls: search, status filters, collapse and paging --- */
+$("liveTeamSearch").addEventListener("input", (e) => {
+  liveSearchTerm = e.target.value || "";
+  renderLiveTeams();
+});
+$("liveStatusFilter")?.addEventListener("click", (e) => {
+  const chip = e.target.closest("[data-live-filter]");
+  if (!chip) return;
+  liveStatusFilter = chip.dataset.liveFilter || "all";
+  $("liveStatusFilter")
+    .querySelectorAll("[data-live-filter]")
+    .forEach((b) =>
+      b.classList.toggle("active", b.dataset.liveFilter === liveStatusFilter),
+    );
+  renderLiveTeams();
+});
+/* ---------------------------------------------------------------------------
+   Squad grid view: how many columns, and how much detail per card.
+   "2 columns" is the default because it halves the scrolling, and every card
+   turns its roster into one compact strip per player so a 16-squad lobby is
+   readable without hunting up and down the page.
+--------------------------------------------------------------------------- */
+const DENSITY_KEY = "bgmi.squadDensity";
+const COLUMNS_KEY = "bgmi.squadColumns";
+const COLUMN_CHOICES = ["auto", "1", "2", "3"];
+let squadDensity = "compact";
+let squadColumns = "2";
+try {
+  const stored = window.localStorage?.getItem(DENSITY_KEY);
+  if (stored === "compact" || stored === "comfortable") squadDensity = stored;
+  const storedColumns = window.localStorage?.getItem(COLUMNS_KEY);
+  if (COLUMN_CHOICES.includes(storedColumns)) squadColumns = storedColumns;
+} catch {
+  /* storage unavailable — keep the defaults */
+}
+function applyDensity() {
+  const compact = squadDensity === "compact";
+  const grid = $("liveTeams");
+  if (grid) grid.classList.toggle("density-compact", compact);
+  // Also shrink the page chrome so more of the lobby fits on screen.
+  $("page-live-controls")?.classList.toggle("compact-view", compact);
+  $("densitySwitch")
+    ?.querySelectorAll("[data-density]")
+    .forEach((b) =>
+      b.classList.toggle("active", b.dataset.density === squadDensity),
+    );
+}
+/* An explicit choice is honoured on every screen wide enough to hold the
+   panels; only a genuinely tiny viewport drops to a single column. This is why
+   "2" means two squads side by side (2 x 8 for a 16-squad lobby) instead of
+   silently collapsing to one column on a laptop or a split screen. */
+// Minimum viewport that still leaves a usable panel: two panels need ~900px,
+// three need ~1500px, otherwise the 2 x 2 player grid inside each panel gets
+// squeezed below a comfortable size.
+const COLUMN_MIN_VIEWPORT = { 2: 900, 3: 1500 };
+function viewportWidth() {
+  return (
+    window.document.documentElement.clientWidth ||
+    window.innerWidth ||
+    1440
+  );
+}
+function effectiveColumns() {
+  const vw = viewportWidth();
+  if (squadColumns === "1") return 1;
+  if (squadColumns === "2") return vw >= COLUMN_MIN_VIEWPORT[2] ? 2 : 1;
+  if (squadColumns === "3")
+    return vw >= COLUMN_MIN_VIEWPORT[3] ? 3 : vw >= COLUMN_MIN_VIEWPORT[2] ? 2 : 1;
+  // Auto: responsive auto-fill around a 430px panel.
+  const grid = $("liveTeams");
+  const width = grid && grid.clientWidth ? grid.clientWidth : vw - 300;
+  return Math.max(1, Math.min(4, Math.floor((width + 12) / 442)));
+}
+function applyColumns() {
+  const grid = $("liveTeams");
+  const cols = effectiveColumns();
+  if (grid) grid.dataset.cols = String(cols);
+  $("columnsSwitch")
+    ?.querySelectorAll("[data-columns]")
+    .forEach((b) =>
+      b.classList.toggle("active", b.dataset.columns === squadColumns),
+    );
+  const narrowed = Number(squadColumns) > cols && squadColumns !== "auto";
+  const switchEl = $("columnsSwitch");
+  if (switchEl) switchEl.classList.toggle("narrowed", narrowed);
+  return cols;
+}
+/* Reports the exact panel shape the operator is looking at, e.g. "2 x 8". */
+function renderColumnReadout(visibleCount) {
+  const el = $("columnsReadout");
+  if (!el) return;
+  const cols = Number($("liveTeams").dataset.cols) || 1;
+  const rows = Math.max(1, Math.ceil(visibleCount / cols));
+  el.textContent = `${cols} × ${rows}`;
+  el.classList.toggle(
+    "narrowed",
+    Number(squadColumns) > cols && squadColumns !== "auto",
+  );
+  el.title =
+    Number(squadColumns) > cols && squadColumns !== "auto"
+      ? `Your screen fits ${cols} panel(s) side by side — showing ${cols} × ${rows}. Widen the window for ${squadColumns} columns.`
+      : `Columns × rows for the squads currently shown (${cols} × ${rows})`;
+}
+/* Keep the layout honest when the operator resizes or splits the screen. */
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (!state) return;
+    applyColumns();
+    renderColumnReadout(filteredLiveTeams().length);
+  }, 120);
+});
+$("columnsSwitch").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-columns]");
+  if (!btn) return;
+  squadColumns = btn.dataset.columns;
+  try {
+    window.localStorage?.setItem(COLUMNS_KEY, squadColumns);
+  } catch {
+    /* ignore */
+  }
+  applyColumns();
+  renderColumnReadout(filteredLiveTeams().length);
+});
+$("densitySwitch").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-density]");
+  if (!btn) return;
+  squadDensity = btn.dataset.density;
+  try {
+    window.localStorage?.setItem(DENSITY_KEY, squadDensity);
+  } catch {
+    /* ignore */
+  }
+  applyDensity();
+});
+/* Fast jump from the lobby index straight to a squad card. */
+$("squadIndex").addEventListener("click", (e) => {
+  const chip = e.target.closest("[data-squad-jump]");
+  if (!chip) return;
+  const card = $("liveTeams").querySelector(
+    `[data-squad-card="${chip.dataset.squadJump}"]`,
+  );
+  if (!card) return;
+  if (collapsedSquads.has(Number(chip.dataset.squadJump))) {
+    collapsedSquads.delete(Number(chip.dataset.squadJump));
+    renderLiveTeams();
+  }
+  const target = $("liveTeams").querySelector(
+    `[data-squad-card="${chip.dataset.squadJump}"]`,
+  );
+  if (target && typeof target.scrollIntoView === "function")
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (target) {
+    target.classList.add("squad-card-flash");
+    setTimeout(() => target.classList.remove("squad-card-flash"), 1200);
+  }
+});
+/* Placement automation switches. */
+$("autoPlacementsToggle").addEventListener("click", () => {
+  if (state.matchStatus === "verified")
+    return toast("This match is verified.");
+  const enabled = state.autoPlacements === false;
+  socket.emit("placements:auto-mode", { enabled });
+  toast(
+    enabled
+      ? "Automatic placements on · positions 9–16 score zero placement points."
+      : "Automatic placements off · every placement is now typed in manually.",
+  );
+});
+$("resetAutoPlacements").addEventListener("click", () => {
+  if (state.matchStatus === "verified")
+    return toast("This match is verified.");
+  if (
+    !confirm(
+      "Rebuild every placement from the recorded elimination order? Typed-in placements will be replaced.",
+    )
+  )
+    return;
+  socket.emit("placements:reset-auto");
+});
+/* Per-squad: hand a typed placement back to the automation engine. */
+$("liveTeams").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-placement-auto]");
+  if (!btn) return;
+  socket.emit("team:update", {
+    teamId: Number(btn.dataset.placementAuto),
+    updates: { placementAuto: true },
+  });
+});
+$("liveTeams").addEventListener("click", (e) => {
+  const toggle = e.target.closest("[data-squad-toggle]");
+  if (!toggle) return;
+  const id = Number(toggle.dataset.squadToggle);
+  if (collapsedSquads.has(id)) collapsedSquads.delete(id);
+  else collapsedSquads.add(id);
+  renderLiveTeams();
+});
+$("expandAllSquads").addEventListener("click", () => {
+  collapsedSquads.clear();
+  renderLiveTeams();
+});
+$("collapseAllSquads").addEventListener("click", () => {
+  collapsedSquads = new Set(filteredLiveTeams().map((t) => Number(t.id)));
+  renderLiveTeams();
+});
+$("backToSetup").addEventListener("click", () => showPage("match-setup"));
+$("openLiveControls").addEventListener("click", () => showPage("live-controls"));
+$("startMatchTop").addEventListener("click", () => {
+  if (state.matchStatus === "verified")
+    return toast("This match is already verified.");
+  if (
+    confirm(
+      `Start Match ${$("matchNumberInput").value} and switch the overlay to LIVE MATCH?`,
+    )
+  ) {
+    socket.emit("match:status", "live");
+    showPage("live-controls");
+  }
+});
+
 function renderTeamAdmin() {
   const search = ($("teamSearch").value || "").toLowerCase();
   const group = $("teamGroupFilter").value;
@@ -943,13 +1436,18 @@ $("startMatch").addEventListener("click", () => {
     confirm(
       `Start Match ${$("matchNumberInput").value} and switch the overlay to LIVE MATCH?`,
     )
-  )
+  ) {
     socket.emit("match:status", "live");
+    // Hand the operator straight to the full-page squad workspace.
+    showPage("live-controls");
+  }
 });
 $("quickLive").addEventListener("click", () => {
-  if (state.matchStatus === "live") return showPage("live");
-  if (confirm(`Start Match ${state.currentMatch}?`))
+  if (state.matchStatus === "live") return showPage("live-controls");
+  if (confirm(`Start Match ${state.currentMatch}?`)) {
     socket.emit("match:status", "live");
+    showPage("live-controls");
+  }
 });
 $("endMatch").addEventListener("click", () => {
   if (state.matchStatus === "verified")

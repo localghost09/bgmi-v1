@@ -3,9 +3,13 @@ const $ = id => document.getElementById(id);
 let lastState = null;
 let lastBroadcastState = null;
 let lastRenderedScene = null;
+// Preview aid: /overlay?scene=overall pins this browser tab to one scene without
+// touching the live broadcast state, so any scene can be checked in a normal tab.
+const BROADCAST_STATES_PREVIEW=['pre-show','stream-start','countdown','caster','format','lineup','live','chicken-dinner','frag-leaders','results','overall','mvp','map-feed','intermission','technical-difficulties','hidden'];
+const PREVIEW_SCENE=(()=>{try{const v=new URLSearchParams(location.search).get('scene');return v&&BROADCAST_STATES_PREVIEW.includes(v)?v:''}catch{return ''}})();
+let overallPage = 0;
 let sceneWipeTimer = null;
 let loadedThemeUrl = '';
-let overallPage = 0;
 let lineupPage = 0;
 let slideTransitionTriggered = false;
 function syncThemeMusic(data,stateName){const audio=$('showMusic');const url=String(data.production?.themeMusicUrl||'').trim();if(url&&url!==loadedThemeUrl){audio.pause();audio.src=url;audio.load();loadedThemeUrl=url;}if(stateName==='stream-start'&&url){if(audio.paused)audio.play().catch(()=>{/* If browser autoplay is blocked, use the same track as an OBS Media Source. */});}else if(lastBroadcastState==='stream-start'||stateName!=='stream-start'){if(!audio.paused){audio.pause();try{audio.currentTime=0}catch{}}}lastBroadcastState=stateName;}
@@ -74,9 +78,9 @@ function render(data) {
   $('matchNumber').textContent=String(data.currentMatch||1).padStart(2,'0');$('headerMap').textContent=`${data.currentMap||'ERANGEL'} · GROUP ${data.currentGroup||'A'}`;
   $('countdownMatchLabel').textContent=`MATCH ${String(data.currentMatch||1).padStart(2,'0')} · GROUP ${data.currentGroup||'A'}`;$('countdownMapLabel').textContent=data.currentMap||'ERANGEL';
   $('mapFeedMapName').textContent=data.currentMap||'ERANGEL';$('mapFeedMatch').textContent=`MATCH ${String(data.currentMatch||1).padStart(2,'0')} · GROUP ${data.currentGroup||'A'}`;
-  const stateName=data.broadcastState||'live';
+  const stateName=PREVIEW_SCENE||data.broadcastState||'live';
   const sceneChanged=lastRenderedScene!==stateName;
-  if(sceneChanged){if(['overall','results'].includes(stateName))overallPage=0;if(stateName==='lineup')lineupPage=0;if(lastRenderedScene!==null)playCinematicTransition(stateName);}
+  if(sceneChanged){if(stateName==='results'||stateName==='overall')overallPage=0;if(stateName==='lineup')lineupPage=0;if(lastRenderedScene!==null)playCinematicTransition(stateName);}
   $('broadcast').className=`broadcast state-${stateName}`;lastRenderedScene=stateName;syncThemeMusic(data,stateName);
   $('streamStartEventName').textContent=data.tournamentName||'BGMI COLLEGE CHAMPIONSHIP';$('streamStartFormat').textContent=data.format||'TOURNAMENT SERIES';$('streamStartOrganizer').textContent=data.organizer||'ESPORTS OPERATIONS';$('formatEventSmall').textContent=data.tournamentName||'BGMI BROADCAST';$('formatName').textContent=data.format||'TOURNAMENT SERIES';$('formatOrganizer').textContent=data.organizer||'ESPORTS OPERATIONS';$('formatGroupCount').textContent=`${Math.max(1,Math.ceil((data.teams||[]).length/16))} GROUPS`;$('formatSemiSlots').textContent=`${data.qualification?.semifinalSlots||24} TEAMS`;$('formatFinalSlots').textContent=`${data.qualification?.finalSlots||16} TEAMS`;$('formatMatchMeta').textContent=`MATCH ${String(data.currentMatch||1).padStart(2,'0')} · ${data.currentGroup||'GROUP A'}`;$('streamStartMatchLabel').textContent=`MATCH ${String(data.currentMatch||1).padStart(2,'0')} · ${data.currentMap||'ERANGEL'}`;$('lineupSubtitle').textContent=`MATCH ${String(data.currentMatch||1).padStart(2,'0')} · ${data.currentGroup||'GROUP A'} · ${data.currentMap||'ERANGEL'}`;$('lineupEventMark').textContent=data.tournamentName||'BGMI ESPORTS';
   const logoUrl=data.production?.eventLogoUrl||'';setImage('streamEventLogo','streamLogoFallback',logoUrl,initials(data.tournamentName||'BG'));
@@ -90,7 +94,6 @@ function render(data) {
   renderLineup(data,currentLineup);
   renderLiveScoreboard(data);
   const overall=scoreOverallTeams(data).slice(0,16);
-  const overallPageCount=Math.max(1,Math.ceil(overall.length/8));overallPage=overallPage%overallPageCount;
   const currentSorted=[...current].sort((a,b)=>{
     if(stateName==='results'){
       const ap=Number(a.placement)||999,bp=Number(b.placement)||999;
@@ -100,12 +103,21 @@ function render(data) {
   });
   const isOverall=stateName==='overall';
   const sourceRows=isOverall?overall:currentSorted;
-  const pageCount=Math.max(1,Math.ceil(sourceRows.length/8));
-  if(!isOverall)overallPage=overallPage%pageCount;
-  const pageRows=sourceRows.slice(overallPage*8,overallPage*8+8);
-  const root=$('fullRows');root.replaceChildren();
-  pageRows.forEach((team,localIndex)=>{
-    const index=overallPage*8+localIndex;
+  // Overall standings show every squad at once: 01-08 in the left table, 09-16 in the right.
+  // The results card shares the screen with the winner panel, so it keeps its 8-row rotation.
+  const shown=sourceRows.slice(0,16);
+  const splitTables=isOverall&&shown.length>8;
+  const pageCount=Math.max(1,Math.ceil(shown.length/8));
+  if(!splitTables)overallPage=overallPage%pageCount;
+  const leftRows=splitTables?shown.slice(0,8):shown.slice(overallPage*8,overallPage*8+8);
+  const rightRows=splitTables?shown.slice(8,16):[];
+  const root=$('fullRows'),rightRoot=$('fullRowsRight');
+  root.replaceChildren();
+  if(rightRoot)rightRoot.replaceChildren();
+  const columnsRoot=$('fullColumns'),rightHalf=$('fullHalfRight');
+  if(columnsRoot)columnsRoot.classList.toggle('single',!splitTables);
+  if(rightHalf)rightHalf.classList.toggle('hidden',!splitTables);
+  const buildRow=(team,index,container)=>{
     const row=document.createElement('div');row.className='full-row';row.dataset.group=String(team.group||'A');
     const rank=document.createElement('span');rank.className=`standings-rank ${groupClass(team.group)}`;rank.textContent=String((isOverall?index+1:(Number(team.placement)||index+1))).padStart(2,'0');
     const teamCell=document.createElement('div');teamCell.className='standings-team-cell';
@@ -117,13 +129,17 @@ function render(data) {
     const finishPoint=Math.max(0,Number(data.scoringRules?.finishPoint)||1);
     const positionPts=document.createElement('span');positionPts.className='num';positionPts.textContent=String(isOverall?(team.overallPlacementPoints||0):Math.max(0,(Number(team.matchPoints)||0)-(Number(team.kills)||0)*finishPoint)).padStart(2,'0');
     const totalPts=document.createElement('span');totalPts.className='num total-points';totalPts.textContent=String(isOverall?(team.overallPoints||0):(team.matchPoints||0)).padStart(3,'0');
-    row.append(rank,teamCell,wins,matches,finishes,positionPts,totalPts);root.append(row);
-  });
-  const totalShown=Math.min(16,sourceRows.length);const from=sourceRows.length?overallPage*8+1:0;const to=Math.min(overallPage*8+8,sourceRows.length);
-  $('fullPageReadout').textContent=`TEAMS ${String(from).padStart(2,'0')}–${String(to).padStart(2,'0')} / ${String(totalShown).padStart(2,'0')}`;
-  $('cardPageKicker').textContent=`TACTICAL DATA GRID // TABLE ${String(overallPage+1).padStart(2,'0')} OF ${String(pageCount).padStart(2,'0')}`;
-  $('standingsUnit').textContent=`${String(from).padStart(2,'0')}_${String(to).padStart(2,'0')}`;
-  $('fullCardFootLeft').textContent=isOverall?'OVERALL LEADERBOARD // TOP 16 TEAMS':'MATCH POINTS // VERIFIED RESULTS';
+    row.append(rank,teamCell,wins,matches,finishes,positionPts,totalPts);container.append(row);
+  };
+  leftRows.forEach((team,localIndex)=>buildRow(team,splitTables?localIndex:overallPage*8+localIndex,root));
+  rightRows.forEach((team,index)=>buildRow(team,index+8,rightRoot));
+  const pad2=n=>String(n).padStart(2,'0');
+  const from=shown.length?(splitTables?1:overallPage*8+1):0;
+  const to=shown.length?(splitTables?shown.length:Math.min(overallPage*8+8,shown.length)):0;
+  $('fullPageReadout').textContent=shown.length?`TEAMS ${pad2(from)}–${pad2(to)} / ${pad2(shown.length)}`:'TEAMS 00 / 00';
+  $('cardPageKicker').textContent=splitTables?`TACTICAL DATA GRID // LEFT 01–08 · RIGHT 09–${pad2(shown.length)}`:`${isOverall?'TACTICAL DATA GRID':'MATCH DATA GRID'} // TABLE ${pad2(overallPage+1)} OF ${pad2(pageCount)}`;
+  $('standingsUnit').textContent=shown.length?`${pad2(from)}_${pad2(to)}`:'00_00';
+  $('fullCardFootLeft').textContent=isOverall?'OVERALL LEADERBOARD // ALL 16 TEAMS · ONE PAGE':'MATCH POINTS // VERIFIED RESULTS';
   $('lineupPageReadout').textContent='DROP SEQUENCE READY';
   if(slideTransitionTriggered){animatePageSwap(root);animatePageSwap($('lineupTeams'));slideTransitionTriggered=false;}
   renderTopFragger(data);renderProduction(data);renderMapFeed(data);renderFragLeaders(data);renderWinnerPanel(data);tickCountdown();tickStreamStart();
@@ -189,11 +205,12 @@ function renderMapFeed(data){const url=data.production?.mapFeed?.imageUrl;const 
 function tickCountdown(){if(!lastState)return;const end=Number(lastState.production?.countdownEndsAt)||0;const remain=end?Math.max(0,Math.ceil((end-Date.now())/1000)):0;$('countdownClock').textContent=String(remain).padStart(2,'0');$('countdownClock').classList.toggle('final-seconds',remain>0&&remain<=5);$('matchCountdownCornerClock').textContent=`00:${String(remain).padStart(2,'0')}`;$('matchCountdownCornerClock').classList.toggle('final-seconds',remain>0&&remain<=5);$('matchCountdownCornerLabel').textContent=`MATCH ${String(lastState.currentMatch||1).padStart(2,'0')} · ${lastState.currentMap||'ERANGEL'}`;}
 function tickStreamStart(){if(!lastState)return;const end=Number(lastState.production?.streamStartEndsAt)||0;const remain=end?Math.max(0,Math.ceil((end-Date.now())/1000)):Math.max(0,Number(lastState.production?.streamStartDurationSeconds)||1200);const mins=Math.floor(remain/60),secs=remain%60;$('streamStartClock').textContent=`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;$('streamStartClock').classList.toggle('final-seconds',remain>0&&remain<=60);}
 setInterval(()=>{tickCountdown();tickStreamStart()},200);
+
+// The results card still rotates 01-08 / 09-16 beside the winner panel;
+// the overall standings table shows all 16 squads at once, so it never rotates.
 setInterval(()=>{
   if(!lastState)return;
-  const state=lastState.broadcastState;
-  if(state==='overall'||state==='results'){
-    const total=state==='overall'?Math.min(16,scoreOverallTeams(lastState).length):(lastState.matchTeamIds||[]).length||16;
-    if(total>8){overallPage=(overallPage+1)%Math.max(2,Math.ceil(total/8));slideTransitionTriggered=true;render(lastState);}
-  }
+  if(lastState.broadcastState!=='results')return;
+  const total=(lastState.matchTeamIds||[]).length||16;
+  if(total>8){overallPage=(overallPage+1)%Math.max(2,Math.ceil(total/8));slideTransitionTriggered=true;render(lastState);}
 },8500);

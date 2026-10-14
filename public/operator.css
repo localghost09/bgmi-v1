@@ -4108,3 +4108,1340 @@ body {
   min-height: 29px;
   font-size: 8px !important;
 }
+
+/* =========================================================================
+   V4.9 PREMIUM SQUAD WORKSPACE
+   Dedicated match-setup page + full-page live squad controls.
+   Pure presentation layer: same controls, attributes and socket events.
+   ========================================================================= */
+:root {
+  --sq-ink: #080d16;
+  --sq-surface: #0e1622;
+  --sq-surface-2: #131e2c;
+  --sq-surface-3: #182538;
+  --sq-line: #22334a;
+  --sq-line-soft: #1b2a3d;
+  --sq-lime: #a3d437;
+  --sq-lime-soft: #cbe978;
+  --sq-teal: #5fd0c4;
+  --sq-amber: #f0B45f;
+  --sq-red: #ef6f78;
+  --sq-muted: #8ea0b6;
+  --sq-radius-lg: 16px;
+  --sq-radius: 12px;
+  --sq-radius-sm: 9px;
+  --sq-shadow: 0 18px 40px #0000004d;
+}
+
+/* ---------- Match setup page: stepper + sticky action bar ---------- */
+.setup-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 4px;
+  padding: 0;
+  list-style: none;
+  counter-reset: setup-step;
+}
+.setup-steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--sq-line-soft);
+  border-radius: var(--sq-radius);
+  background: linear-gradient(150deg, #0f1826, #0b1119);
+  position: relative;
+  overflow: hidden;
+}
+.setup-steps li:before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: #223148;
+}
+.setup-steps li.current {
+  border-color: #3a5a2a;
+  background: linear-gradient(150deg, #16241a, #0d1512);
+  box-shadow: inset 0 0 0 1px #a3d43712;
+}
+.setup-steps li.current:before {
+  background: linear-gradient(180deg, var(--sq-lime), #4f7a1c);
+}
+.setup-steps li b {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  color: #e9f1f8;
+}
+.setup-steps li small {
+  display: block;
+  margin-top: 3px;
+  color: var(--sq-muted);
+  font: 9px/1.5 var(--mono);
+  letter-spacing: 0.3px;
+}
+.setup-step-icon {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid #2b3d56;
+  background: #0c1622;
+  color: #9fb3c9;
+  font: 800 11px var(--mono);
+}
+.setup-steps li.current .setup-step-icon {
+  border-color: #5c8433;
+  background: #1b2d12;
+  color: var(--sq-lime-soft);
+}
+.setup-return-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 14px 18px;
+  border: 1px solid var(--sq-line);
+  border-radius: var(--sq-radius-lg);
+  background: linear-gradient(120deg, #101b28f2, #0b131df2);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 -12px 32px #05080ecc, inset 0 1px #ffffff0a;
+}
+.setup-bar-copy b {
+  display: block;
+  font-size: 13px;
+  color: #eef4fa;
+}
+.setup-bar-copy small {
+  display: block;
+  margin-top: 3px;
+  color: var(--sq-muted);
+  font: 9px var(--mono);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.setup-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.setup-return-bar .btn {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+/* ---------- Status pills ---------- */
+.status-pill.live {
+  border-color: #7a2b34;
+  background: #2a1116;
+  color: #ffc2c6;
+  box-shadow: inset 0 0 0 1px #ef6f7820;
+}
+.status-pill.verified {
+  border-color: #4b6b35;
+  background: #16240f;
+  color: #d9f0aa;
+}
+.status-pill.review {
+  border-color: #7a6031;
+  background: #2a2110;
+  color: #f4dca4;
+}
+.status-pill.upcoming {
+  border-color: #33465e;
+  background: #121c29;
+  color: #b8c8da;
+}
+
+/* ---------- Squad workspace toolbar ---------- */
+.live-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.squad-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid var(--sq-line);
+  border-radius: 10px;
+  background: #0b1320;
+}
+.squad-search > span {
+  color: #7d8fa5;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.9px;
+}
+.squad-search input {
+  width: 180px;
+  border: 0;
+  background: transparent;
+  color: #e9f1f8;
+  font-size: 12px;
+  outline: none;
+}
+.squad-search input::placeholder {
+  color: #5f7288;
+}
+.squad-search:focus-within {
+  border-color: #4c7a2f;
+  box-shadow: 0 0 0 3px #a3d4371a;
+}
+.squad-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--sq-line-soft);
+  border-radius: var(--sq-radius);
+  background: linear-gradient(120deg, #0f1826, #0b1119);
+}
+.squad-tools .btn-small {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.squad-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.squad-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #26374d;
+  border-radius: 999px;
+  background: #0d1724;
+  color: #a7b8cb;
+  font: 800 9px var(--mono);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+.squad-filter-chip b {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #16263a;
+  color: #cfdcea;
+  font: 800 9px var(--mono);
+}
+.squad-filter-chip:hover {
+  border-color: #3d5673;
+  color: #dce7f2;
+}
+.squad-filter-chip.active {
+  border-color: #5c8433;
+  background: linear-gradient(120deg, #1d2f14, #14210f);
+  color: var(--sq-lime-soft);
+}
+.squad-filter-chip.active b {
+  background: #2c4519;
+  color: #e6f7c0;
+}
+.squad-collapse-tools {
+  display: flex;
+  gap: 6px;
+}
+
+/* ---------- Squad grid + premium cards ---------- */
+.live-team-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 14px !important;
+}
+.squad-card.premium {
+  position: relative;
+  overflow: hidden;
+  padding: 0 !important;
+  border: 1px solid var(--sq-line) !important;
+  border-radius: var(--sq-radius-lg) !important;
+  background: linear-gradient(160deg, #111c2a 0%, #0c1421 58%, #0a1019 100%) !important;
+  box-shadow: var(--sq-shadow), inset 0 1px #ffffff0b !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease !important;
+}
+.squad-card.premium:before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg, #5fd0c4, #a3d437 42%, transparent 88%);
+  opacity: 0.75;
+}
+.squad-card.premium:hover {
+  border-color: #3a5474 !important;
+  box-shadow: 0 24px 48px #0006, inset 0 1px #ffffff12 !important;
+}
+.squad-card.premium.health-out {
+  border-color: #4a2530 !important;
+}
+.squad-card.premium.health-out:before {
+  background: linear-gradient(90deg, #ef6f78, #7d3540 55%, transparent 90%);
+}
+.squad-card.premium.health-damaged {
+  border-color: #4a3a22 !important;
+}
+.squad-card.premium.health-damaged:before {
+  background: linear-gradient(90deg, #f0b45f, #8a6526 55%, transparent 90%);
+}
+.squad-card.premium.health-clean:before {
+  background: linear-gradient(90deg, #a3d437, #4f7a1c 55%, transparent 90%);
+}
+
+.squad-card.premium .squad-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sq-line-soft);
+  background: linear-gradient(120deg, #14202f, #0e1725);
+}
+.squad-card.premium .squad-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.squad-rank {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid #2f4663;
+  background: #0b1420;
+  color: #9fb6cd;
+  font: 800 11px var(--mono);
+}
+.squad-crest {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  border: 1px solid #2d445f;
+  background: linear-gradient(150deg, #16273a, #0d1826);
+  overflow: hidden;
+}
+.squad-crest img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.squad-crest i {
+  font: 800 15px var(--mono);
+  color: #a8bfd6;
+  font-style: normal;
+}
+.squad-card.premium .squad-name {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.squad-card.premium .squad-name small {
+  color: #7e93aa;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.7px;
+}
+.squad-card.premium .squad-name b {
+  max-width: min(46vw, 420px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f1f7fd;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+}
+.squad-health {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #33506e;
+  background: #0e1b29;
+  color: #a9c3da;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.8px;
+}
+.squad-health.health-clean {
+  border-color: #4f7a30;
+  background: #16240f;
+  color: #d5ef9f;
+}
+.squad-health.health-damaged {
+  border-color: #7a6031;
+  background: #241c0d;
+  color: #f6d79b;
+}
+.squad-health.health-out {
+  border-color: #7c2f39;
+  background: #260f14;
+  color: #ffbec4;
+}
+.squad-card.premium .squad-head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.squad-card.premium .squad-score {
+  text-align: right;
+}
+.squad-card.premium .squad-score small {
+  display: block;
+  color: #7e93aa;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.9px;
+}
+.squad-card.premium .squad-pts {
+  display: block;
+  color: var(--sq-lime-soft) !important;
+  font-size: 26px !important;
+  line-height: 1.05;
+  letter-spacing: 0.5px;
+}
+.squad-collapse {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #2f4663;
+  border-radius: 9px;
+  background: #0b1420;
+  color: #a9bfd6;
+  font-size: 12px;
+  line-height: 1;
+}
+.squad-collapse:hover {
+  border-color: #4c7a2f;
+  color: var(--sq-lime-soft);
+}
+.squad-card.premium .squad-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--sq-line-soft);
+  border-bottom: 1px solid var(--sq-line-soft);
+}
+.squad-stat {
+  display: block;
+  padding: 10px 14px;
+  background: #0c1521;
+}
+.squad-stat small {
+  display: block;
+  color: #7e93aa;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.8px;
+}
+.squad-stat b {
+  display: block;
+  margin-top: 4px;
+  color: #eaf2fa;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+}
+.squad-card.premium .squad-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--sq-line-soft);
+  background: #0b1420;
+}
+.squad-finish-block {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.squad-card.premium .finish-plus {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid #5c8433;
+  border-radius: 10px;
+  background: linear-gradient(120deg, #24390f, #1a2a0d);
+  color: #e6f7c0;
+  font: 800 10px var(--mono);
+  letter-spacing: 0.7px;
+}
+.squad-card.premium .finish-plus:hover {
+  border-color: #86bb46;
+  background: linear-gradient(120deg, #2d4713, #1f3310);
+}
+.squad-card.premium .finish-minus {
+  width: 40px;
+  min-height: 36px;
+  border: 1px solid #35506f;
+  border-radius: 10px;
+  background: #0f1c2b;
+  color: #b9cde0;
+  font: 800 14px var(--mono);
+}
+.squad-card.premium .finish-minus:hover {
+  border-color: #ef6f78;
+  color: #ffc4c9;
+}
+.squad-card.premium .placement-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px !important;
+  min-height: 36px;
+  border: 1px solid #2f4663 !important;
+  border-radius: 10px;
+  background: #0f1c2b !important;
+  color: #8fa6bd !important;
+  font: 800 9px var(--mono) !important;
+  letter-spacing: 0.8px !important;
+}
+.squad-card.premium .placement-input {
+  width: 58px;
+  min-height: 26px;
+  border: 1px solid #35506f;
+  border-radius: 7px;
+  background: #0a1120;
+  color: #eaf2fa;
+  font: 700 12px var(--mono);
+  text-align: center;
+}
+.squad-card.premium .squad-edit-btn {
+  min-height: 36px;
+  margin-left: auto;
+  padding: 0 16px !important;
+  border: 1px solid #35506f !important;
+  border-radius: 10px !important;
+  background: #101d2c !important;
+  color: #c6d6e6 !important;
+  font: 800 10px var(--mono) !important;
+  letter-spacing: 0.7px !important;
+}
+.squad-card.premium .squad-edit-btn:hover {
+  border-color: #5fd0c4;
+  color: #d8fbf6;
+}
+
+/* Players: two-up premium roster tiles */
+.squad-card.premium .player-ops {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 14px 16px 16px;
+}
+.squad-card.premium .player-op {
+  display: flex;
+  flex-direction: column;
+  gap: 10px !important;
+  padding: 12px !important;
+  border: 1px solid var(--sq-line-soft) !important;
+  border-radius: var(--sq-radius) !important;
+  background: linear-gradient(155deg, #101b29, #0a121c) !important;
+  box-shadow: inset 0 1px #ffffff08;
+}
+.player-op.status-eliminated {
+  border-color: #45222a !important;
+  background: linear-gradient(155deg, #17141b, #0b1017) !important;
+}
+.player-op.status-knocked {
+  border-color: #4a3a22 !important;
+}
+.squad-card.premium .player-op-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #22334a;
+}
+.player-avatar-mini {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid #2d445f !important;
+  object-fit: cover;
+  background: #0c1725;
+}
+.player-avatar-mini.fallback {
+  display: grid;
+  place-items: center;
+  font: 800 12px var(--mono);
+  color: #9fb6cd;
+}
+.player-op-id {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.player-op-id small {
+  display: block;
+  color: #7e93aa;
+  font: 800 8px var(--mono) !important;
+  letter-spacing: 0.7px;
+}
+.squad-card.premium .player-op-head b {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #edf4fb;
+  font-size: 12px !important;
+}
+.player-op-fin {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  flex: 0 0 auto;
+}
+.player-chip-fin,
+.player-chip-dmg {
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid #2c405b;
+  background: #0d1927;
+  color: #b9cee0;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.player-chip-fin {
+  border-color: #5c8433;
+  background: #17250e;
+  color: #ddf3ab;
+}
+.squad-card.premium .player-op-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.squad-card.premium .player-kill-plus {
+  flex: 1 1 auto;
+  min-height: 34px;
+  border: 1px solid #3f6031 !important;
+  border-radius: 9px !important;
+  background: #16240f !important;
+  color: #d5ef9f !important;
+  font: 800 9px var(--mono) !important;
+  letter-spacing: 0.6px !important;
+}
+.squad-card.premium .player-kill-plus:hover {
+  background: #1e3113;
+  border-color: #86bb46;
+}
+.squad-card.premium .player-kill-minus {
+  width: 34px;
+  min-height: 34px;
+  border: 1px solid #35506f !important;
+  border-radius: 9px !important;
+  background: #0f1c2b !important;
+  color: #b9cde0 !important;
+  font: 800 13px var(--mono) !important;
+}
+.squad-card.premium .player-damage-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  min-height: 34px;
+  border: 1px solid #2f4663;
+  border-radius: 9px;
+  background: #0f1c2b;
+  color: #8fa6bd;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.8px;
+}
+.squad-card.premium .player-damage-control input {
+  width: 62px;
+  min-height: 24px;
+  border: 1px solid #35506f;
+  border-radius: 6px;
+  background: #0a1120;
+  color: #eaf2fa;
+  font: 700 11px var(--mono);
+  text-align: center;
+}
+.squad-card.premium .player-statuses {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px !important;
+  padding: 4px;
+  border: 1px solid var(--sq-line-soft);
+  border-radius: 10px;
+  background: #0a1220;
+}
+.squad-card.premium .player-statuses button {
+  min-height: 32px;
+  border: 1px solid transparent !important;
+  border-radius: 7px;
+  background: transparent !important;
+  color: #93a8bd !important;
+  font: 800 9px var(--mono) !important;
+  letter-spacing: 0.6px !important;
+}
+.squad-card.premium .player-statuses button:hover {
+  background: #101d2c !important;
+  color: #dbe7f2 !important;
+}
+.squad-card.premium .player-statuses button.alive.selected {
+  background: linear-gradient(120deg, #1d3a24, #14281a) !important;
+  border-color: #52bd70 !important;
+  color: #d3ffdc !important;
+  box-shadow: inset 0 0 0 1px #52bd7026;
+}
+.squad-card.premium .player-statuses button.knocked.selected {
+  background: linear-gradient(120deg, #3d2c12, #2a1e0d) !important;
+  border-color: #f0b45f !important;
+  color: #ffe3b3 !important;
+}
+.squad-card.premium .player-statuses button.eliminated.selected {
+  background: linear-gradient(120deg, #401c20, #2a1216) !important;
+  border-color: #ef6f78 !important;
+  color: #ffd0d4 !important;
+}
+
+/* Collapsed squads keep the summary, hide the heavy controls */
+.squad-card.premium.collapsed .player-ops,
+.squad-card.premium.collapsed .squad-actions {
+  display: none !important;
+}
+.squad-card.premium.collapsed .squad-collapse {
+  border-color: #4c7a2f;
+  color: var(--sq-lime-soft);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1180px) {
+  .setup-steps {
+    grid-template-columns: 1fr;
+  }
+  .squad-filter-chips {
+    margin-left: 0;
+  }
+}
+@media (max-width: 980px) {
+  .squad-card.premium .player-ops {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .squad-card.premium .squad-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .squad-card.premium .player-ops,
+  .squad-card.premium .squad-summary {
+    grid-template-columns: 1fr;
+  }
+  .squad-card.premium .squad-card-head {
+    flex-wrap: wrap;
+  }
+  .squad-card.premium .squad-edit-btn {
+    margin-left: 0;
+  }
+  .squad-search input {
+    width: 120px;
+  }
+  .setup-return-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .setup-bar-actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
+/* =========================================================================
+   V4.10 — ALL 16 SQUADS ON ONE PAGE + AUTOMATIC PLACEMENTS
+   ========================================================================= */
+
+/* ---------- Toolbar rows ---------- */
+.squad-tools-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.squad-tools-row + .squad-tools-row {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #1b2a3d;
+}
+.placement-row {
+  justify-content: space-between;
+}
+.placement-status {
+  margin: 0;
+  color: #9db0c4;
+  font: 800 9px/1.7 var(--mono);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.placement-status b {
+  color: #e6f0f9;
+}
+.placement-sep {
+  color: #465c74;
+  padding: 0 2px;
+}
+.placement-warn {
+  color: #f6d79b;
+}
+.placement-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.toggle-btn.on {
+  border-color: #5c8433 !important;
+  background: linear-gradient(120deg, #1d2f14, #14210f) !important;
+  color: #ddf3ab !important;
+}
+.toggle-btn.off {
+  border-color: #7a4a2a !important;
+  background: linear-gradient(120deg, #2a1d10, #1c1409) !important;
+  color: #f4cf9a !important;
+}
+
+/* ---------- Density switch ---------- */
+.seg-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #26374d;
+  border-radius: 10px;
+  background: #0b1320;
+}
+.seg-switch button {
+  min-height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #93a8bd;
+  font: 800 9px var(--mono);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.seg-switch button.active {
+  background: linear-gradient(120deg, #1d2f14, #16240f);
+  color: #ddf3ab;
+  box-shadow: inset 0 0 0 1px #5c843344;
+}
+
+/* ---------- Sticky lobby index (jump to any of the 16 squads) ---------- */
+.squad-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #1b2a3d;
+  border-radius: 12px;
+  background: linear-gradient(120deg, #0d1622, #0a1119);
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  box-shadow: 0 10px 24px #05080ecc;
+}
+.squad-index.hidden {
+  display: none !important;
+}
+.squad-index-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 210px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #26374d;
+  border-radius: 999px;
+  background: #0d1724;
+  color: #c3d3e3;
+  font: 800 9px var(--mono);
+  letter-spacing: 0.4px;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.squad-index-chip b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 92px;
+  color: #eaf3fb;
+  font-size: 10px;
+}
+.squad-index-rank {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: #16263a;
+  color: #9fb6cd;
+}
+.squad-index-pts {
+  color: #d8e6f2;
+}
+.squad-index-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4c6684;
+}
+.squad-index-dot.health-clean {
+  background: #a3d437;
+  box-shadow: 0 0 6px #a3d43780;
+}
+.squad-index-dot.health-damaged {
+  background: #f0b45f;
+  box-shadow: 0 0 6px #f0b45f80;
+}
+.squad-index-dot.health-out {
+  background: #ef6f78;
+  box-shadow: 0 0 6px #ef6f7880;
+}
+.squad-index-chip.health-out {
+  border-color: #4a2530;
+  color: #ffc4c9;
+}
+.squad-index-chip.health-damaged {
+  border-color: #4a3a22;
+}
+.squad-index-chip:hover {
+  border-color: #4c7a2f;
+  transform: translateY(-1px);
+}
+.squad-index-chip.collapsed {
+  opacity: 0.72;
+}
+
+/* ---------- Grid: everything visible, no paging ---------- */
+.live-team-grid {
+  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)) !important;
+  gap: 12px !important;
+}
+.squad-card-flash {
+  animation: squad-flash 1.2s ease;
+}
+@keyframes squad-flash {
+  0%,
+  100% {
+    box-shadow: var(--sq-shadow), inset 0 1px #ffffff0b;
+  }
+  20% {
+    box-shadow: 0 0 0 2px #a3d437, 0 20px 40px #0007;
+  }
+}
+
+/* ---------- Placement automation controls inside each card ---------- */
+.placement-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.placement-mode {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #3a5474;
+  background: #0f1c2b;
+  color: #a9c3da;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.7px;
+}
+.placement-block.auto .placement-mode {
+  border-color: #5c8433;
+  background: #16240f;
+  color: #d5ef9f;
+}
+.placement-block.manual .placement-mode {
+  border-color: #7a6031;
+  background: #241c0d;
+  color: #f6d79b;
+}
+.placement-auto-btn {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #35506f;
+  border-radius: 10px;
+  background: #101d2c;
+  color: #b9cee0;
+  font: 800 9px var(--mono);
+  letter-spacing: 0.6px;
+}
+.placement-auto-btn:hover {
+  border-color: #5fd0c4;
+  color: #d8fbf6;
+}
+.squad-stat.pending b {
+  color: #7e93aa;
+}
+.squad-stat.zero b {
+  color: #7e93aa;
+}
+.squad-stat.scoring b {
+  color: #ddf3ab;
+}
+.squad-card.premium .player-op-actions {
+  flex-wrap: wrap;
+}
+
+/* ---------- Compact density: 16 squads on one screen ---------- */
+.live-team-grid.density-compact {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+  gap: 10px !important;
+}
+.live-team-grid.density-compact .squad-card.premium {
+  border-radius: 12px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-card-head {
+  gap: 8px;
+  padding: 9px 11px;
+}
+.live-team-grid.density-compact .squad-crest {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.live-team-grid.density-compact .squad-rank {
+  width: 26px;
+  height: 26px;
+  font-size: 10px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-name b {
+  font-size: 12px;
+  max-width: min(30vw, 220px);
+}
+.live-team-grid.density-compact .squad-card.premium .squad-pts {
+  font-size: 20px !important;
+}
+.live-team-grid.density-compact .squad-health {
+  display: none;
+}
+.live-team-grid.density-compact .squad-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.live-team-grid.density-compact .squad-stat {
+  padding: 7px 10px;
+}
+.live-team-grid.density-compact .squad-stat b {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.live-team-grid.density-compact .squad-stat:nth-child(4) {
+  display: none;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-actions {
+  gap: 7px;
+  padding: 8px 11px;
+}
+.live-team-grid.density-compact .squad-card.premium .finish-plus,
+.live-team-grid.density-compact .squad-card.premium .squad-edit-btn,
+.live-team-grid.density-compact .placement-auto-btn {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 9px;
+}
+.live-team-grid.density-compact .squad-card.premium .finish-minus {
+  min-height: 30px;
+  width: 32px;
+}
+.live-team-grid.density-compact .squad-card.premium .placement-label {
+  min-height: 30px;
+  padding: 0 8px;
+}
+.live-team-grid.density-compact .squad-card.premium .placement-input {
+  width: 46px;
+  min-height: 22px;
+  font-size: 11px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-ops {
+  gap: 7px !important;
+  padding: 9px 11px 11px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op {
+  gap: 7px !important;
+  padding: 8px !important;
+}
+.live-team-grid.density-compact .player-avatar-mini {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op-head {
+  gap: 7px;
+  padding-bottom: 7px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op-head b {
+  font-size: 11px !important;
+}
+.live-team-grid.density-compact .player-chip-fin,
+.live-team-grid.density-compact .player-chip-dmg {
+  padding: 2px 5px;
+  font-size: 7px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-kill-plus,
+.live-team-grid.density-compact .squad-card.premium .player-kill-minus {
+  min-height: 28px;
+  font-size: 8px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-damage-control {
+  min-height: 28px;
+  padding: 0 7px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-damage-control input {
+  width: 50px;
+  min-height: 20px;
+  font-size: 10px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-statuses button {
+  min-height: 26px;
+  font: 800 8px var(--mono) !important;
+}
+@media (max-width: 720px) {
+  .squad-index {
+    position: static;
+  }
+}
+
+/* =========================================================================
+   V4.11 — GRID COLUMN CONTROL + ROSTER STRIPS
+   Two columns is the default: each card drops to roughly two-thirds of its
+   former height by turning the four player tiles into single rows, so a full
+   16-squad lobby stays readable without heavy scrolling.
+   ========================================================================= */
+
+/* ---------- Segmented switch (shared by GRID and density) ---------- */
+.seg-switch {
+  align-items: center;
+  gap: 2px;
+}
+.seg-switch-label {
+  padding: 0 7px 0 5px;
+  color: #7d8fa5;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.9px;
+}
+.seg-switch button {
+  min-width: 34px;
+}
+
+/* ---------- Column templates ---------- */
+.live-team-grid.density-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+.live-team-grid[data-cols="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+.live-team-grid[data-cols="1"] {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+.live-team-grid[data-cols="auto"] {
+  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)) !important;
+}
+/* Re-asserted after the legacy 980px/720px rules so a chosen 2-up layout is not
+   silently collapsed on a laptop or a split-screen view. */
+@media (min-width: 900px) {
+  .live-team-grid[data-cols="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .live-team-grid[data-cols="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .live-team-grid[data-cols="1"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* ---------- Player cards: a 2 x 2 grid inside every squad panel ---------- */
+/* Player 1 | Player 2 on the first row, Player 3 | Player 4 on the second, in
+   every column mode, so an operator reads a whole squad without scrolling. */
+.live-team-grid .squad-card.premium .player-ops {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-auto-rows: minmax(0, auto);
+}
+/* Narrow panels (3-up or a small laptop): keep 2 x 2 and let the internals
+   breathe vertically instead of squeezing the name. */
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op,
+.live-team-grid.density-compact .squad-card.premium .player-op {
+  gap: 6px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op-head {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op-fin {
+  flex: 1 1 100%;
+  flex-direction: row;
+  gap: 5px;
+  align-items: center;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op-fin,
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op-head {
+  flex-wrap: wrap;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op-fin {
+  flex: 1 1 100%;
+  flex-direction: row;
+  gap: 5px;
+}
+/* One player per row only on genuinely tiny screens. */
+@media (max-width: 560px) {
+  .live-team-grid .squad-card.premium .player-ops {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+/* ---------- Tighter card chrome in grid modes ---------- */
+.live-team-grid.density-compact .squad-card.premium .squad-card-head {
+  padding: 11px 14px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-actions {
+  padding: 9px 14px;
+  gap: 8px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.live-team-grid.density-compact .squad-stat {
+  padding: 8px 12px;
+}
+.live-team-grid.density-compact .squad-stat b {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-pts {
+  font-size: 21px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-name b {
+  font-size: 13px;
+  max-width: min(26vw, 260px);
+}
+.live-team-grid.density-compact .squad-card.premium .finish-plus,
+.live-team-grid.density-compact .squad-card.premium .squad-edit-btn,
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-edit-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 9px;
+}
+.live-team-grid.density-compact .squad-card.premium .finish-minus {
+  min-height: 32px;
+  width: 34px;
+}
+.live-team-grid.density-compact .squad-card.premium .placement-label {
+  min-height: 32px;
+  padding: 0 10px;
+}
+.live-team-grid.density-compact .placement-auto-btn {
+  min-height: 32px;
+}
+
+/* ---------- Three columns: drop indicators, never controls ---------- */
+/* The health pill is already implied by the card's coloured accent, and the
+   damage figure is visible in its own input - but the per-player finish count
+   and every control stay on screen. */
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-health,
+.live-team-grid[data-cols="3"] .player-chip-dmg {
+  display: none !important;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-actions {
+  row-gap: 7px;
+}
+.live-team-grid[data-cols="3"] .squad-crest {
+  width: 30px;
+  height: 30px;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-card-head,
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-actions,
+.live-team-grid[data-cols="3"] .squad-card.premium .player-ops {
+  padding-left: 11px;
+  padding-right: 11px;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op-head {
+  flex: 1 1 120px;
+}
+.live-team-grid[data-cols="3"] .squad-stat:nth-child(4) {
+  display: none;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* ---------- Compact density also applies inside strips ---------- */
+.live-team-grid.density-compact .squad-card.premium .player-op {
+  padding: 5px 7px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .player-statuses button {
+  min-width: 38px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-card-head {
+  padding: 9px 11px;
+}
+
+/* ---------- Reclaim vertical space when the operator wants density ---------- */
+.live-list-head p {
+  font-size: 11px;
+  margin-top: 4px;
+}
+.live-list-head h3 {
+  font-size: 14px;
+}
+/* Set by operator.js together with density-compact. */
+#page-live-controls.compact-view .section-banner {
+  padding: 12px 16px;
+}
+#page-live-controls.compact-view .section-banner p {
+  display: none;
+}
+#page-live-controls.compact-view .squad-tools {
+  padding: 8px 10px;
+}
+
+/* ---------- Very small screens: a single column, everything else is JS ---------- */
+@media (max-width: 899px) {
+  .live-team-grid[data-cols] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .seg-switch-label,
+  .seg-switch-readout {
+    display: none;
+  }
+}
+
+/* ---------- Layout readout: "2 × 8" ---------- */
+.seg-switch-readout {
+  margin-left: 2px;
+  padding: 0 9px;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  border-left: 1px solid #26374d;
+  color: #a9c3da;
+  font: 800 9px var(--mono);
+  letter-spacing: 0.7px;
+  white-space: nowrap;
+}
+.seg-switch-readout.narrowed,
+.seg-switch.narrowed .seg-switch-readout {
+  color: #f6d79b;
+}

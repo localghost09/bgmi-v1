@@ -36,6 +36,21 @@ function sessionSecret() {
 const sessionStore = MONGODB_URI ? MongoStore.create({ mongoUrl: MONGODB_URI, dbName: MONGODB_DB, collectionName: 'bgmi_sessions', ttl: 60 * 60 * 12, autoRemove: 'native' }) : undefined;
 const sessionMiddleware = session({ name: 'bgmi.sid', secret: sessionSecret(), resave: false, saveUninitialized: false, rolling: true, store: sessionStore, cookie: { httpOnly: true, sameSite: 'strict', secure: process.env.COOKIE_SECURE === 'true', maxAge: 12 * 60 * 60 * 1000 } });
 
+// ---------------------------------------------------------------------------
+// DEVELOPMENT LOGIN BYPASS
+// Start the server with DEV_BYPASS_LOGIN=true (`npm run dev:open`) to walk
+// straight into the operator dashboard without an administrator sign-in.
+// Every browser gets an in-memory "dev-operator" admin session, so the REST
+// routes and the operator socket work exactly as they do after a real login.
+// It is OFF by default and must never be enabled on a public broadcast server.
+// ---------------------------------------------------------------------------
+const DEV_BYPASS_LOGIN = ['1', 'true', 'on', 'yes', 'enabled'].includes(String(process.env.DEV_BYPASS_LOGIN || '').trim().toLowerCase());
+const DEV_BYPASS_USER = { username: 'dev-operator', role: 'admin', accountId: null, email: null, phone: null, captainName: null };
+function developmentLoginBypass(req, _res, next) {
+  if (DEV_BYPASS_LOGIN && req.session && !isAdminUser(req.session.user)) req.session.user = { ...DEV_BYPASS_USER };
+  next();
+}
+
 const BROADCAST_STATES = ['pre-show', 'stream-start', 'countdown', 'caster', 'format', 'lineup', 'live', 'chicken-dinner', 'frag-leaders', 'results', 'overall', 'mvp', 'map-feed', 'intermission', 'technical-difficulties', 'hidden'];
 const PLAYER_STATUSES = ['alive', 'knocked', 'eliminated'];
 const MATCH_STATUSES = ['upcoming', 'live', 'awaiting-verification', 'verified'];
@@ -48,7 +63,7 @@ function cleanHttpUrl(value) {
 }
 function cleanMediaUrl(value) { const raw=String(value||'').trim(); if(!raw)return ''; if(raw.length>500)return ''; if(raw.startsWith('/assets/')&&!raw.startsWith('//')&&!raw.includes('..'))return raw; return cleanHttpUrl(raw); }
 function makeTeam(id, total = 96) {
-  return { id, name: `TEAM ${String(id).padStart(2, '0')}`, group: total <= 16 ? 'A' : GROUPS[Math.floor((id - 1) / Math.max(1, Math.ceil(total / 6))) % 6], logo: '', college: '', substitute: '', registered: false, registrationId: null, players: [1,2,3,4].map(n => ({ name: `PLAYER ${n}`, uid: '', status: 'alive', kills: 0, damage: 0, avatarUrl: '' })), kills: 0, placement: 0, matchPoints: 0, overallPoints: 0, overallKills: 0, overallMatches: 0 };
+  return { id, name: `TEAM ${String(id).padStart(2, '0')}`, group: total <= 16 ? 'A' : GROUPS[Math.floor((id - 1) / Math.max(1, Math.ceil(total / 6))) % 6], logo: '', college: '', substitute: '', registered: false, registrationId: null, players: [1,2,3,4].map(n => ({ name: `PLAYER ${n}`, uid: '', status: 'alive', kills: 0, damage: 0, avatarUrl: '', autoEliminated: false })), kills: 0, placement: 0, placementAuto: true, eliminatedAt: null, matchPoints: 0, overallPoints: 0, overallKills: 0, overallMatches: 0 };
 }
 function makeDefaultData() {
   return {
@@ -56,7 +71,7 @@ function makeDefaultData() {
     currentGroup: 'A', currentMap: 'Erangel', matchStatus: 'upcoming', broadcastState: 'pre-show', matchTeamIds: Array.from({length:16},(_,i)=>i+1),
     registrationSettings: { open: true, maxTeams: 96 }, registrations: [],
     production: { countdownEndsAt: null, countdownDuration: 30, streamStartEndsAt: null, streamStartDurationSeconds: 1200, eventLogoUrl: '', themeMusicUrl: '', broadcastStageLabel: 'GROUP STAGE', broadcastDayLabel: 'DAY 1', broadcastGroupLabel: '', broadcastMatchCaption: '', caster: { name: 'MAIN CASTER', tagline: 'THE BATTLE STARTS NOW', imageUrl: '' }, mapFeed: { imageUrl: '', visible: true }, mvpMode: 'match' },
-    qualification: { semifinalSlots: 24, finalSlots: 16 }, scoringRules: { finishPoint: 1, placementPoints: DEFAULT_PLACEMENT_POINTS },
+    qualification: { semifinalSlots: 24, finalSlots: 16 }, scoringRules: { finishPoint: 1, placementPoints: DEFAULT_PLACEMENT_POINTS }, autoPlacements: true, placementSequence: 0,
     matchHistory: [], auditLog: [], eventLog: [], teams: Array.from({length:96}, (_,i)=>makeTeam(i+1,96))
   };
 }
@@ -69,6 +84,8 @@ function normalizeData(old) {
   data.registrationSettings.open = data.registrationSettings.open !== false;
   data.registrations = Array.isArray(old && old.registrations) ? old.registrations.map(r => ({ id:String(r.id||crypto.randomUUID()), accountId:String(r.accountId||''), teamName:String(r.teamName||'').slice(0,48), college:String(r.college||'').slice(0,100), captainName:String(r.captainName||'').slice(0,60), email:String(r.email||'').slice(0,120), phone:String(r.phone||'').replace(/\D/g,'').slice(0,15), teamLogoUrl:cleanHttpUrl(r.teamLogoUrl), playerNames:Array.isArray(r.playerNames)?r.playerNames.slice(0,4).map(n=>String(n||'').slice(0,48)):[], playerUids:Array.isArray(r.playerUids)?r.playerUids.slice(0,4).map(v=>String(v||'').replace(/\D/g,'').slice(0,15)):[], playerAvatarUrls:Array.isArray(r.playerAvatarUrls)?r.playerAvatarUrls.slice(0,4).map(cleanHttpUrl):[], substitute:String(r.substitute||'').slice(0,48), submittedAt:r.submittedAt||new Date().toISOString(), status:['pending','approved','rejected','waitlisted'].includes(r.status)?r.status:'pending', groupPreference:String(r.groupPreference||'').slice(0,8), assignedTeamId:Number(r.assignedTeamId)||null, assignedGroup:String(r.assignedGroup||'').slice(0,16), reviewedAt:r.reviewedAt||null, reviewedBy:String(r.reviewedBy||'').slice(0,32), reason:String(r.reason||'').slice(0,300) })) : [];
   data.matchTeamIds = Array.isArray(old && old.matchTeamIds) ? [...new Set(old.matchTeamIds.map(Number).filter(n=>Number.isInteger(n)&&n>0&&n<=96))] : [];
+  data.autoPlacements = !(old && old.autoPlacements === false);
+  data.placementSequence = Math.max(0, Math.floor(Number(old && old.placementSequence) || 0));
   data.qualification = { ...base.qualification, ...((old && old.qualification) || {}) };
   data.scoringRules = { ...base.scoringRules, ...((old && old.scoringRules) || {}) };
   data.matchHistory = Array.isArray(old && old.matchHistory) ? old.matchHistory : [];
@@ -86,9 +103,9 @@ function normalizeData(old) {
   const count = Math.max(16, Math.min(96, oldTeams.length || 96));
   data.teams = Array.from({ length: count }, (_, i) => {
     const id = i + 1, source = byId.get(id) || {}, defaults = makeTeam(id, count);
-    return { ...defaults, ...source, id, name: String(source.name || defaults.name).slice(0, 48), group: String(source.group || defaults.group).slice(0, 16), logo: cleanHttpUrl(source.logo), college: String(source.college || '').slice(0,100), substitute: String(source.substitute || '').slice(0,48), registered: Boolean(source.registered) || Boolean(source.registrationId), registrationId: source.registrationId ? String(source.registrationId).slice(0,80) : null,
+    return { ...defaults, ...source, id, placementAuto: source.placementAuto !== false, eliminatedAt: Number(source.eliminatedAt) > 0 ? Math.floor(Number(source.eliminatedAt)) : null, name: String(source.name || defaults.name).slice(0, 48), group: String(source.group || defaults.group).slice(0, 16), logo: cleanHttpUrl(source.logo), college: String(source.college || '').slice(0,100), substitute: String(source.substitute || '').slice(0,48), registered: Boolean(source.registered) || Boolean(source.registrationId), registrationId: source.registrationId ? String(source.registrationId).slice(0,80) : null,
       kills: Math.max(0, Math.floor(Number(source.kills) || 0)), placement: Math.max(0, Math.min(count, Math.floor(Number(source.placement) || 0))),
-      players: Array.from({ length: 4 }, (_, pi) => ({ name: String((source.players && source.players[pi] && source.players[pi].name) || `PLAYER ${pi + 1}`).slice(0, 32), uid: String((source.players && source.players[pi] && source.players[pi].uid) || '').replace(/\D/g,'').slice(0,15), status: PLAYER_STATUSES.includes(source.players && source.players[pi] && source.players[pi].status) ? source.players[pi].status : 'alive', kills: Math.max(0, Math.floor(Number(source.players && source.players[pi] && source.players[pi].kills) || 0)), damage: Math.max(0, Math.min(50000, Math.floor(Number(source.players && source.players[pi] && source.players[pi].damage) || 0))), avatarUrl: cleanHttpUrl(source.players && source.players[pi] && source.players[pi].avatarUrl) })) };
+      players: Array.from({ length: 4 }, (_, pi) => ({ name: String((source.players && source.players[pi] && source.players[pi].name) || `PLAYER ${pi + 1}`).slice(0, 32), uid: String((source.players && source.players[pi] && source.players[pi].uid) || '').replace(/\D/g,'').slice(0,15), status: PLAYER_STATUSES.includes(source.players && source.players[pi] && source.players[pi].status) ? source.players[pi].status : 'alive', autoEliminated: Boolean(source.players && source.players[pi] && source.players[pi].autoEliminated), kills: Math.max(0, Math.floor(Number(source.players && source.players[pi] && source.players[pi].kills) || 0)), damage: Math.max(0, Math.min(50000, Math.floor(Number(source.players && source.players[pi] && source.players[pi].damage) || 0))), avatarUrl: cleanHttpUrl(source.players && source.players[pi] && source.players[pi].avatarUrl) })) };
   });
   if (!data.matchTeamIds.length) data.matchTeamIds = data.teams.filter(t => t.group === (GROUPS.includes(data.currentGroup) ? data.currentGroup : 'A')).slice(0,16).map(t=>t.id);
   data.matchTeamIds = data.matchTeamIds.filter(id=>data.teams.some(t=>t.id===id)).slice(0,16);
@@ -103,7 +120,74 @@ function loadData() {
   catch (e) { console.error('Tournament data could not be loaded:', e.message); return base; }
 }
 function placementPoints(position, data=tournament) { return Number(data.scoringRules.placementPoints[String(Number(position))]) || 0; }
+// ---------------------------------------------------------------------------
+// PLACEMENT AUTOMATION
+// A squad owns a placement the moment its fourth player is eliminated: the
+// first squad wiped from a 16-squad lobby is 16th, the next one is 15th and so
+// on, so positions 9-16 fall out of the scoring table as zero placement points
+// without any typing. Operators can still type an exact placement for
+// re-verification, which pins that squad to manual mode until it is reset.
+// ---------------------------------------------------------------------------
+function activeMatchTeamList(data=tournament) { const ids = Array.isArray(data.matchTeamIds) && data.matchTeamIds.length ? data.matchTeamIds : data.teams.filter(t=>t.group===data.currentGroup).slice(0,16).map(t=>t.id); return data.teams.filter(t=>ids.includes(t.id)); }
+/* A squad with no living member is finished: knocked players bleed out because
+   nobody is left to revive them. Returns the number of players cascaded into
+   elimination, or -1 when the wipe was undone by a revive. */
+function applySquadWipe(team) {
+  const players = team.players || [];
+  if (!players.length) return 0;
+  const alive = players.filter(p => p.status === 'alive').length;
+  if (alive > 0) {
+    // Revived: undo only the players this rule had eliminated by itself.
+    let undone = 0;
+    for (const p of players) if (p.autoEliminated) { p.status = 'knocked'; p.autoEliminated = false; undone += 1; }
+    return undone ? -1 : 0;
+  }
+  let cascaded = 0;
+  for (const p of players) if (p.status === 'knocked' || p.status === 'alive') { p.status = 'eliminated'; p.autoEliminated = true; cascaded += 1; }
+  return cascaded;
+}
+function squadWiped(team) { const players = team.players || []; return players.length > 0 && players.every(p => p.status === 'eliminated'); }
+/* Assigns placements as a permutation of 1..lobbySize, so two squads can never
+   share a position (or its points). Squads the operator typed in keep their
+   position; automatic squads fill the positions that are left, deepest first,
+   in elimination order. */
+function syncAutoPlacements(data=tournament) {
+  if (data.autoPlacements === false) return;
+  const active = activeMatchTeamList(data);
+  if (!active.length) return;
+  const total = active.length;
+  let sequence = Math.max(0, Math.floor(Number(data.placementSequence) || 0));
+  const automatic = active.filter(t => t.placementAuto !== false);
+  for (const team of automatic) {
+    if (!squadWiped(team)) { team.eliminatedAt = null; continue; }
+    if (!(Number(team.eliminatedAt) > 0)) { sequence += 1; team.eliminatedAt = sequence; }
+  }
+  data.placementSequence = sequence;
+
+  // 1. Positions the operator owns. Manual squads are never moved.
+  const taken = new Set();
+  for (const team of active) {
+    if (team.placementAuto === false && Number(team.placement) >= 1 && Number(team.placement) <= total) taken.add(Number(team.placement));
+    else if (team.placementAuto === false) team.placement = 0;
+  }
+
+  // 2. Free positions left for the automatic squads.
+  const free = [];
+  for (let position = total; position >= 1; position -= 1) if (!taken.has(position)) free.push(position);
+
+  // 3. Earliest eliminated squad takes the deepest free position.
+  for (const team of automatic) team.placement = 0;
+  const wiped = automatic.filter(t => Number(t.eliminatedAt) > 0).sort((a,b) => a.eliminatedAt - b.eliminatedAt);
+  wiped.forEach(team => { if (free.length) team.placement = free.shift(); });
+
+  // 4. A lone survivor is the chicken dinner, so it takes the best position
+  //    still free (free is ordered deepest-first, so the best one is last).
+  const stillPlaying = automatic.filter(t => !squadWiped(t));
+  if (stillPlaying.length === 1 && free.length) stillPlaying[0].placement = free[free.length - 1];
+}
+function resetAutoPlacements(data=tournament) { data.placementSequence = 0; data.teams.forEach(t => { t.placementAuto = true; t.eliminatedAt = null; }); }
 function recalculate(data=tournament) {
+  syncAutoPlacements(data);
   const totals=new Map();
   for(const match of data.matchHistory||[]) for(const r of match.results||[]) {
     const id=Number(r.teamId), t=totals.get(id)||{points:0,kills:0,matches:0};
@@ -133,7 +217,7 @@ function save() {
 }
 function stripUidRows(rows){return (rows||[]).map(({uid,...publicRow})=>publicRow);}
 function displayPlayerStats(){const stats=playerStats();return {...stats,currentLeaders:stripUidRows(stats.currentLeaders),overallLeaders:stripUidRows(stats.overallLeaders),matchMvp:stats.matchMvp?(({uid,...r})=>r)(stats.matchMvp):null,overallTopFragger:stats.overallTopFragger?(({uid,...r})=>r)(stats.overallTopFragger):null};}
-function operatorState(){const {auditLog,registrations,...safeState}=tournament;return {...safeState,playerStats:playerStats(),registrationCount:(tournament.registrations||[]).filter(r=>r.status==='approved').length,pendingRegistrationCount:(tournament.registrations||[]).filter(r=>r.status==='pending').length,reservedRegistrationCount:(tournament.registrations||[]).filter(r=>['approved','pending','waitlisted'].includes(r.status)).length};}
+function operatorState(){const {auditLog,registrations,...safeState}=tournament;return {...safeState,autoPlacements:tournament.autoPlacements!==false,placementSequence:tournament.placementSequence||0,playerStats:playerStats(),registrationCount:(tournament.registrations||[]).filter(r=>r.status==='approved').length,pendingRegistrationCount:(tournament.registrations||[]).filter(r=>r.status==='pending').length,reservedRegistrationCount:(tournament.registrations||[]).filter(r=>['approved','pending','waitlisted'].includes(r.status)).length};}
 function publicState(){const {auditLog,registrations,...safeState}=tournament;const state=JSON.parse(JSON.stringify(safeState));state.teams=(state.teams||[]).map(({registrationId,college,substitute,...team})=>({...team,players:(team.players||[]).map(({uid,...p})=>p)}));state.matchHistory=(state.matchHistory||[]).map(match=>({...match,results:(match.results||[]).map(result=>({...result,players:(result.players||[]).map(({uid,...p})=>p)}))}));return {...state,playerStats:displayPlayerStats(),registrationCount:(tournament.registrations||[]).filter(r=>r.status==='approved').length,pendingRegistrationCount:(tournament.registrations||[]).filter(r=>r.status==='pending').length,reservedRegistrationCount:(tournament.registrations||[]).filter(r=>['approved','pending','waitlisted'].includes(r.status)).length};}
 function spectatorState() {
   const history=Array.isArray(tournament.matchHistory)?tournament.matchHistory:[];
@@ -207,16 +291,22 @@ async function readAdmin() { try { return JSON.parse(await fs.promises.readFile(
 function loginSession(req, user) { return new Promise((resolve, reject) => req.session.regenerate(err => { if (err) return reject(err); req.session.user = { username: user.username, role: user.role || 'admin', accountId: user.accountId || null, email: user.email || null, phone: user.phone || null, captainName: user.captainName || null }; req.session.save(saveErr => saveErr ? reject(saveErr) : resolve()); })); }
 
 app.disable('x-powered-by');
-app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
+app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');
+  // Dev bypass runs inside sandbox/preview viewers and OBS browser sources, so allow framing there only.
+  res.setHeader('X-Frame-Options', DEV_BYPASS_LOGIN ? 'ALLOWALL' : 'SAMEORIGIN');
+  res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
 app.use(express.json({ limit: '100kb' }));
 app.use(sessionMiddleware);
 io.engine.use(sessionMiddleware);
+// Give every request and socket handshake the bypass operator session (dev only).
+app.use(developmentLoginBypass);
+io.engine.use(developmentLoginBypass);
 // Protect the operator HTML before static-file handling, including path-prefix variants.
 app.use('/operator.html', requireAuth);
 app.use(express.static(path.join(__dirname, 'public'), { index: false, dotfiles: 'deny' }));
 app.get('/', (_, res) => res.redirect('/operator'));
-app.get('/login', (_, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
-app.get('/login.html', (_, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/login', (_, res) => DEV_BYPASS_LOGIN ? res.redirect('/operator') : res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/login.html', (_, res) => DEV_BYPASS_LOGIN ? res.redirect('/operator') : res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/operator', requireAuth, (_, res) => res.sendFile(path.join(__dirname, 'public', 'operator.html')));
 app.get('/operator.html', requireAuth, (_, res) => res.sendFile(path.join(__dirname, 'public', 'operator.html')));
 app.get('/overlay', (_, res) => res.sendFile(path.join(__dirname, 'public', 'overlay.html')));
@@ -283,7 +373,7 @@ app.post('/api/registrations', sameOrigin, registrationLimiter, requireCaptain, 
 });
 app.get('/api/registrations.csv', requireAuth, (_,res)=>{ const rows=[['Status','Team','College / Club','Captain','Email','Phone','Group Preference','Assigned Group','Assigned Team','Player 1 UID','Player 2 UID','Player 3 UID','Player 4 UID','Submitted At'],...(tournament.registrations||[]).map(r=>[r.status,r.teamName,r.college,r.captainName,r.email,r.phone,r.groupPreference,r.assignedGroup,r.assignedTeamId||'',r.playerUids?.[0]||'',r.playerUids?.[1]||'',r.playerUids?.[2]||'',r.playerUids?.[3]||'',r.submittedAt])]; const csv=rows.map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n'); res.setHeader('Content-Type','text/csv; charset=utf-8');res.setHeader('Content-Disposition','attachment; filename="bgmi-registrations.csv"');res.send(csv); });
 app.get('/api/auth/status', async (_, res) => { const admin = await readAdmin(); res.json({ configured: Boolean(admin), setupAllowed: !admin }); });
-app.get('/api/auth/me', (req, res) => isAdminUser(req.session?.user) ? res.json({ authenticated: true, user: req.session.user }) : res.status(401).json({ authenticated: false }));
+app.get('/api/auth/me', (req, res) => isAdminUser(req.session?.user) ? res.json({ authenticated: true, user: req.session.user, loginBypass: DEV_BYPASS_LOGIN }) : res.status(401).json({ authenticated: false, loginBypass: DEV_BYPASS_LOGIN }));
 app.post('/api/auth/setup', sameOrigin, authLimiter, async (req, res) => {
   const existing = await readAdmin();
   if (existing) return res.status(409).json({ error: 'Administrator is already configured. Please sign in.' });
@@ -346,8 +436,8 @@ io.on('connection',socket=>{
       if(used.has(slot.id)) {
         tournament.matchHistory=(tournament.matchHistory||[]).map(match=>({...match,results:(match.results||[]).filter(result=>Number(result.teamId)!==Number(slot.id))})).filter(match=>match.results.length);
       }
-      slot.name=record.teamName; slot.group=chosenGroup; slot.college=record.college; slot.substitute=record.substitute; slot.registered=true; slot.registrationId=record.id; slot.kills=0; slot.placement=0; slot.matchPoints=0; slot.logo='';
-      slot.logo=record.teamLogoUrl||''; slot.players=record.playerNames.map((name,i)=>({name:name||`PLAYER ${i+1}`,uid:String(record.playerUids?.[i]||'').replace(/\D/g,'').slice(0,15),status:'alive',kills:0,avatarUrl:record.playerAvatarUrls?.[i]||''}));
+      slot.name=record.teamName; slot.group=chosenGroup; slot.college=record.college; slot.substitute=record.substitute; slot.registered=true; slot.registrationId=record.id; slot.kills=0; slot.placement=0; slot.placementAuto=true; slot.eliminatedAt=null; slot.matchPoints=0; slot.logo='';
+      slot.logo=record.teamLogoUrl||''; slot.players=record.playerNames.map((name,i)=>({name:name||`PLAYER ${i+1}`,uid:String(record.playerUids?.[i]||'').replace(/\D/g,'').slice(0,15),status:'alive',kills:0,avatarUrl:record.playerAvatarUrls?.[i]||'',autoEliminated:false}));
       record.status='approved';record.assignedTeamId=slot.id;record.assignedGroup=chosenGroup;record.reviewedAt=new Date().toISOString();record.reviewedBy=socket.request.session.user.username;record.reason='';
       audit('registration:approved',{registrationId:record.id,teamId:slot.id,group:chosenGroup});
     } else { record.status=decision; record.reviewedAt=new Date().toISOString();record.reviewedBy=socket.request.session.user.username;record.reason=String(reason||'').trim().slice(0,300); audit(`registration:${decision}`,{registrationId:record.id}); }
@@ -387,7 +477,19 @@ io.on('connection',socket=>{
     if(typeof updates.group==='string'&&GROUPS.includes(updates.group.trim())){team.group=updates.group.trim();if(team.registrationId){const reg=tournament.registrations.find(r=>r.id===team.registrationId);if(reg)reg.assignedGroup=team.group;}}
     if(typeof updates.logo==='string')team.logo=cleanHttpUrl(updates.logo);
     if(Array.isArray(updates.players))team.players=updates.players.slice(0,4).map((p,i)=>({name:String(p.name||`PLAYER ${i+1}`).trim().slice(0,32)||`PLAYER ${i+1}`,uid:String(p.uid||team.players[i]?.uid||'').replace(/\D/g,'').slice(0,15),status:PLAYER_STATUSES.includes(p.status)?p.status:'alive',kills:Math.max(0,Math.min(999,Math.floor(Number(p.kills)||0))),damage:Math.max(0,Math.min(50000,Math.floor(Number(p.damage??team.players[i]?.damage)||0))),avatarUrl:cleanHttpUrl(p.avatarUrl)}));
-    if(updates.placement!==undefined){if(tournament.matchStatus==='verified')return error(socket,'This match is verified.');const p=Number(updates.placement);if(!Number.isInteger(p)||p<0||p>16)return error(socket,'Placement must be between 0 and 16.');if(!activeMatchTeams().some(t=>t.id===team.id))return error(socket,'This squad is not selected for the current match lineup.');team.placement=p;recalculate();}
+    if(updates.placement!==undefined){
+      if(tournament.matchStatus==='verified')return error(socket,'This match is verified.');
+      const lobbySize=activeMatchTeams().length;
+      const p=Number(updates.placement);
+      if(!Number.isInteger(p)||p<0||p>lobbySize)return error(socket,`Placement must be a whole number from 0 to ${lobbySize} in this lobby.`);
+      if(!activeMatchTeams().some(t=>t.id===team.id))return error(socket,'This squad is not selected for the current match lineup.');
+      // Positions are unique by rule: 16th place belongs to exactly one squad.
+      if(p>=1){
+        const holder=activeMatchTeams().find(t=>t.id!==team.id&&Number(t.placement)===p);
+        if(holder)return error(socket,`Placement ${p} is already taken by ${holder.name}. Give one of them a different position, or press \u21ba AUTO to let the elimination order decide.`);
+      }
+      team.placement=p;team.placementAuto=updates.placementAuto===true;if(team.placementAuto)team.eliminatedAt=null;recalculate();
+    }
     commit('team:updated',{teamId:team.id});
   });
   socket.on('team:kill',({teamId,amount=1}={})=>{
@@ -400,7 +502,14 @@ io.on('connection',socket=>{
     if (!requireOperatorSocket(socket)) return;
     const team=findTeam(teamId),i=Number(playerIndex);if(!team||!Number.isInteger(i)||!team.players[i]||!PLAYER_STATUSES.includes(status))return;if(!activeMatchTeams().some(t=>t.id===team.id))return error(socket,'This squad is not selected for the current match lineup.');
     if(tournament.matchStatus==='verified')return error(socket,'This match is verified.');
-    const previous=team.players[i].status;team.players[i].status=status;logEvent('status',team.id,`${team.name} player ${i+1}: ${previous} → ${status}`);commit('player:status',{teamId:team.id,playerIndex:i,status});
+    const previous=team.players[i].status;
+    team.players[i].status=status;
+    if(status!=='eliminated')team.players[i].autoEliminated=false;
+    // Nobody is left to revive a knocked player, so the squad is wiped out.
+    const cascaded=applySquadWipe(team);
+    logEvent('status',team.id,`${team.name} player ${i+1}: ${previous} → ${status}${cascaded?` · squad wiped (${cascaded} knocked player${cascaded===1?'':'s'} eliminated)`:''}`);
+    if(cascaded===-1)team.players.forEach((p,pi)=>{if(p.autoEliminated){p.status='knocked';p.autoEliminated=false;logEvent('status',team.id,`${team.name} player ${pi+1}: revived to knocked`);}});
+    commit('player:status',{teamId:team.id,playerIndex:i,status});
   });
   socket.on('player:damage',({teamId,playerIndex,damage}={})=>{
     if(!requireOperatorSocket(socket))return;
@@ -480,8 +589,25 @@ io.on('connection',socket=>{
     const changed=nextNumber!==tournament.currentMatch||nextGroup!==tournament.currentGroup||nextTeamIds.join(',')!==(tournament.matchTeamIds||[]).join(',');
     tournament.currentMatch=nextNumber;tournament.currentGroup=nextGroup;tournament.matchTeamIds=nextTeamIds;
     if(map!==undefined)tournament.currentMap=String(map).trim().slice(0,40)||'Erangel';
-    if(changed){tournament.teams.forEach(t=>{t.kills=0;t.placement=0;t.matchPoints=0;t.players.forEach(p=>{p.status='alive';p.kills=0;p.damage=0})});tournament.matchStatus='upcoming';tournament.eventLog=[];}
+    if(changed){tournament.teams.forEach(t=>{t.kills=0;t.placement=0;t.matchPoints=0;t.players.forEach(p=>{p.status='alive';p.kills=0;p.damage=0})});resetAutoPlacements();tournament.matchStatus='upcoming';tournament.eventLog=[];}
     commit('match:configured',{matchNumber:tournament.currentMatch,group:tournament.currentGroup,map:tournament.currentMap,teamIds:nextTeamIds});
+  });
+  socket.on('placements:auto-mode',({enabled}={})=>{
+    if (!requireOperatorSocket(socket)) return;
+    if(tournament.matchStatus==='verified')return error(socket,'This match is verified.');
+    tournament.autoPlacements = enabled !== false;
+    if(tournament.autoPlacements) activeMatchTeamList().forEach(t=>{t.placementAuto=true;});
+    else activeMatchTeamList().forEach(t=>{t.placementAuto=false;});
+    tournament.auditLog.push({id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,at:new Date().toISOString(),action:'placements:auto-mode',enabled:tournament.autoPlacements});
+    commit('placements:auto-mode',{enabled:tournament.autoPlacements});
+  });
+  socket.on('placements:reset-auto',()=>{
+    if (!requireOperatorSocket(socket)) return;
+    if(tournament.matchStatus==='verified')return error(socket,'This match is verified.');
+    const active = activeMatchTeamList();
+    // Keep the elimination timeline: only the manual pin is released.
+    active.forEach(t=>{t.placementAuto=true;t.placement=0;t.matchPoints=0;});
+    commit('placements:recalculated',{teams:active.length});
   });
   socket.on('match:status',value=>{
     if (!requireOperatorSocket(socket)) return;
@@ -507,13 +633,13 @@ io.on('connection',socket=>{
     if(results.some(r=>r.placement<1||r.placement>groupTeams.length))return error(socket,`Enter a final placement from 1 to ${groupTeams.length} for every selected squad before publishing.`);
     const placed=results.map(r=>r.placement);if(new Set(placed).size!==placed.length)return error(socket,'Duplicate placements found. Each squad must have a unique final placement.');
     tournament.matchHistory.push({matchNumber:tournament.currentMatch,group:tournament.currentGroup,map:tournament.currentMap,teamIds:groupTeams.map(t=>t.id),finalizedAt:new Date().toISOString(),verified:true,results});
-    tournament.teams.forEach(t=>{t.kills=0;t.placement=0;t.matchPoints=0;t.players.forEach(p=>{p.status='alive';p.kills=0;p.damage=0});});
+    tournament.teams.forEach(t=>{t.kills=0;t.placement=0;t.matchPoints=0;t.players.forEach(p=>{p.status='alive';p.kills=0;p.damage=0});});resetAutoPlacements();
     tournament.eventLog=[];tournament.matchStatus='verified';tournament.broadcastState='chicken-dinner';logEvent('verified',null,`Match ${tournament.currentMatch} results verified and published`);commit('match:verified',{matchNumber:tournament.currentMatch});
   });
   socket.on('match:reset',()=>{
     if (!requireOperatorSocket(socket)) return;
     if(tournament.matchStatus==='verified')return error(socket,'Verified results are locked. Choose a new match number; corrections should preserve the official record.');
-    tournament.teams.forEach(t=>{t.kills=0;t.placement=0;t.matchPoints=0;t.players.forEach(p=>{p.status='alive';p.kills=0;p.damage=0});});tournament.matchStatus='upcoming';tournament.eventLog=[];commit('match:reset',{matchNumber:tournament.currentMatch});
+    tournament.teams.forEach(t=>{t.kills=0;t.placement=0;t.matchPoints=0;t.players.forEach(p=>{p.status='alive';p.kills=0;p.damage=0});});resetAutoPlacements();tournament.matchStatus='upcoming';tournament.eventLog=[];commit('match:reset',{matchNumber:tournament.currentMatch});
   });
   socket.on('tournament:reset',confirmation=>{
     if (!requireOperatorSocket(socket)) return;
@@ -536,5 +662,5 @@ async function initializeStorage() {
   storageMode = 'MongoDB primary · JSON recovery snapshot';
 }
 initializeStorage().then(() => {
-  server.listen(PORT, HOST, () => console.log(`\nBGMI Broadcast V4.8.1 Tactical Broadcast Arena\nHost    : ${HOST}\nOperator: http://localhost:${PORT}/operator\nLogin   : http://localhost:${PORT}/login\nRegister: http://localhost:${PORT}/register\nOverlay : http://localhost:${PORT}/overlay\nHealth  : http://localhost:${PORT}/api/health\nStorage : ${storageMode}\n`));
+  server.listen(PORT, HOST, () => console.log(`\nBGMI Broadcast V4.8.1 Tactical Broadcast Arena\nHost    : ${HOST}\nOperator: http://localhost:${PORT}/operator\nLogin   : ${DEV_BYPASS_LOGIN ? 'BYPASSED (DEV_BYPASS_LOGIN=true) - /operator opens directly, development only' : 'http://localhost:' + PORT + '/login'}\nRegister: http://localhost:${PORT}/register\nOverlay : http://localhost:${PORT}/overlay\nHealth  : http://localhost:${PORT}/api/health\nStorage : ${storageMode}\n`));
 }).catch(err => { console.error('Storage initialization failed:', err.message); process.exit(1); });
