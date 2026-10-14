@@ -613,6 +613,7 @@ function renderLiveTeams() {
   }
   renderSquadIndex(teams);
   applyDensity();
+  applyColumns();
   restoreGridFocus(focusInfo);
 }
 
@@ -681,7 +682,7 @@ function buildSquadCard(t, rank, totalVisible) {
               ${p.avatarUrl ? `<img class="player-avatar-mini" src="${safe(p.avatarUrl)}" alt="" onerror="this.remove()">` : `<span class="player-avatar-mini fallback">${safe((p.name || "P").trim().charAt(0).toUpperCase())}</span>`}
               <div class="player-op-id">
                 <small>PLAYER ${String(i + 1).padStart(2, "0")}</small>
-                <b title="${safe(p.name)}">${safe(p.name)}</b>
+                <b title="${safe(p.name)} · UID ${safe(p.uid || "not entered")}">${safe(p.name)}</b>
                 <small class="player-uid-note">UID ${safe(p.uid || "NOT ENTERED")}</small>
               </div>
               <div class="player-op-fin">${playerStatsChips(p, Number(p.kills) || 0)}</div>
@@ -916,24 +917,57 @@ $("liveStatusFilter")?.addEventListener("click", (e) => {
     );
   renderLiveTeams();
 });
-/* Card density: comfortable (full detail) or compact (everything on one screen). */
+/* ---------------------------------------------------------------------------
+   Squad grid view: how many columns, and how much detail per card.
+   "2 columns" is the default because it halves the scrolling, and every card
+   turns its roster into one compact strip per player so a 16-squad lobby is
+   readable without hunting up and down the page.
+--------------------------------------------------------------------------- */
 const DENSITY_KEY = "bgmi.squadDensity";
-let squadDensity = "comfortable";
+const COLUMNS_KEY = "bgmi.squadColumns";
+const COLUMN_CHOICES = ["auto", "1", "2", "3"];
+let squadDensity = "compact";
+let squadColumns = "2";
 try {
   const stored = window.localStorage?.getItem(DENSITY_KEY);
   if (stored === "compact" || stored === "comfortable") squadDensity = stored;
+  const storedColumns = window.localStorage?.getItem(COLUMNS_KEY);
+  if (COLUMN_CHOICES.includes(storedColumns)) squadColumns = storedColumns;
 } catch {
-  /* storage unavailable — keep the default */
+  /* storage unavailable — keep the defaults */
 }
 function applyDensity() {
+  const compact = squadDensity === "compact";
   const grid = $("liveTeams");
-  if (grid) grid.classList.toggle("density-compact", squadDensity === "compact");
+  if (grid) grid.classList.toggle("density-compact", compact);
+  // Also shrink the page chrome so more of the lobby fits on screen.
+  $("page-live-controls")?.classList.toggle("compact-view", compact);
   $("densitySwitch")
     ?.querySelectorAll("[data-density]")
     .forEach((b) =>
       b.classList.toggle("active", b.dataset.density === squadDensity),
     );
 }
+function applyColumns() {
+  const grid = $("liveTeams");
+  if (grid) grid.dataset.cols = squadColumns;
+  $("columnsSwitch")
+    ?.querySelectorAll("[data-columns]")
+    .forEach((b) =>
+      b.classList.toggle("active", b.dataset.columns === squadColumns),
+    );
+}
+$("columnsSwitch").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-columns]");
+  if (!btn) return;
+  squadColumns = btn.dataset.columns;
+  try {
+    window.localStorage?.setItem(COLUMNS_KEY, squadColumns);
+  } catch {
+    /* ignore */
+  }
+  applyColumns();
+});
 $("densitySwitch").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-density]");
   if (!btn) return;

@@ -4929,14 +4929,14 @@ body {
 }
 
 /* ---------- Density switch ---------- */
-.density-switch {
+.seg-switch {
   display: inline-flex;
   padding: 3px;
   border: 1px solid #26374d;
   border-radius: 10px;
   background: #0b1320;
 }
-.density-switch button {
+.seg-switch button {
   min-height: 26px;
   padding: 0 12px;
   border: 0;
@@ -4947,7 +4947,7 @@ body {
   letter-spacing: 0.6px;
   text-transform: uppercase;
 }
-.density-switch button.active {
+.seg-switch button.active {
   background: linear-gradient(120deg, #1d2f14, #16240f);
   color: #ddf3ab;
   box-shadow: inset 0 0 0 1px #5c843344;
@@ -5226,5 +5226,241 @@ body {
   }
   .squad-index {
     position: static;
+  }
+}
+
+/* =========================================================================
+   V4.11 — GRID COLUMN CONTROL + ROSTER STRIPS
+   Two columns is the default: each card drops to roughly two-thirds of its
+   former height by turning the four player tiles into single rows, so a full
+   16-squad lobby stays readable without heavy scrolling.
+   ========================================================================= */
+
+/* ---------- Segmented switch (shared by GRID and density) ---------- */
+.seg-switch {
+  align-items: center;
+  gap: 2px;
+}
+.seg-switch-label {
+  padding: 0 7px 0 5px;
+  color: #7d8fa5;
+  font: 800 8px var(--mono);
+  letter-spacing: 0.9px;
+}
+.seg-switch button {
+  min-width: 34px;
+}
+
+/* ---------- Column templates ---------- */
+.live-team-grid.density-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+.live-team-grid[data-cols="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+.live-team-grid[data-cols="1"] {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+.live-team-grid[data-cols="auto"] {
+  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)) !important;
+}
+
+/* ---------- Roster strips: one row per player (grid modes 2 and 3) ---------- */
+.live-team-grid.density-compact .squad-card.premium .player-ops {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 6px !important;
+  padding: 10px 14px 12px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 8px !important;
+  border-radius: 9px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op-head {
+  flex: 1 1 168px;
+  min-width: 0;
+  gap: 8px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op-actions {
+  flex: 0 0 auto;
+  gap: 5px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-statuses {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 3px !important;
+  gap: 4px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .player-statuses button {
+  min-width: 44px;
+  min-height: 28px;
+  padding: 0 8px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .player-kill-plus {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 8px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-kill-minus {
+  width: 30px;
+  min-height: 28px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-damage-control {
+  min-height: 28px;
+  padding: 0 7px;
+  gap: 5px;
+}
+.live-team-grid.density-compact .squad-card.premium .player-damage-control input {
+  width: 52px;
+  min-height: 20px;
+}
+/* The UID is reference data, not match input — keep it in Teams & groups. */
+.live-team-grid.density-compact .squad-card.premium .player-uid-note {
+  display: none !important;
+}
+.live-team-grid.density-compact .player-avatar-mini {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+.live-team-grid.density-compact .player-op-id small {
+  font-size: 7px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op-head b {
+  font-size: 11px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .player-op {
+  gap: 6px 8px;
+}
+.live-team-grid.density-compact .player-op-fin {
+  flex-direction: row;
+  gap: 5px;
+}
+
+/* ---------- Tighter card chrome in grid modes ---------- */
+.live-team-grid.density-compact .squad-card.premium .squad-card-head {
+  padding: 11px 14px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-actions {
+  padding: 9px 14px;
+  gap: 8px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.live-team-grid.density-compact .squad-stat {
+  padding: 8px 12px;
+}
+.live-team-grid.density-compact .squad-stat b {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-pts {
+  font-size: 21px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-name b {
+  font-size: 13px;
+  max-width: min(26vw, 260px);
+}
+.live-team-grid.density-compact .squad-card.premium .finish-plus,
+.live-team-grid.density-compact .squad-card.premium .squad-edit-btn,
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-edit-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 9px;
+}
+.live-team-grid.density-compact .squad-card.premium .finish-minus {
+  min-height: 32px;
+  width: 34px;
+}
+.live-team-grid.density-compact .squad-card.premium .placement-label {
+  min-height: 32px;
+  padding: 0 10px;
+}
+.live-team-grid.density-compact .placement-auto-btn {
+  min-height: 32px;
+}
+
+/* ---------- Three columns: drop indicators, never controls ---------- */
+/* The health pill is already implied by the card's coloured accent, and the
+   damage figure is visible in its own input - but the per-player finish count
+   and every control stay on screen. */
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-health,
+.live-team-grid[data-cols="3"] .player-chip-dmg {
+  display: none !important;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-actions {
+  row-gap: 7px;
+}
+.live-team-grid[data-cols="3"] .squad-crest {
+  width: 30px;
+  height: 30px;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-card-head,
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-actions,
+.live-team-grid[data-cols="3"] .squad-card.premium .player-ops {
+  padding-left: 11px;
+  padding-right: 11px;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op-head {
+  flex: 1 1 120px;
+}
+.live-team-grid[data-cols="3"] .squad-stat:nth-child(4) {
+  display: none;
+}
+.live-team-grid[data-cols="3"] .squad-card.premium .squad-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* ---------- Compact density also applies inside strips ---------- */
+.live-team-grid.density-compact .squad-card.premium .player-op {
+  padding: 5px 7px !important;
+}
+.live-team-grid.density-compact .squad-card.premium .player-statuses button {
+  min-width: 38px;
+}
+.live-team-grid.density-compact .squad-card.premium .squad-card-head {
+  padding: 9px 11px;
+}
+
+/* ---------- Reclaim vertical space when the operator wants density ---------- */
+.live-list-head p {
+  font-size: 11px;
+  margin-top: 4px;
+}
+.live-list-head h3 {
+  font-size: 14px;
+}
+/* Set by operator.js together with density-compact. */
+#page-live-controls.compact-view .section-banner {
+  padding: 12px 16px;
+}
+#page-live-controls.compact-view .section-banner p {
+  display: none;
+}
+#page-live-controls.compact-view .squad-tools {
+  padding: 8px 10px;
+}
+
+/* ---------- Narrow operator screens always fall back to one column ---------- */
+@media (max-width: 1150px) {
+  .live-team-grid[data-cols="2"],
+  .live-team-grid[data-cols="3"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+@media (max-width: 720px) {
+  .live-team-grid[data-cols="auto"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .seg-switch-label {
+    display: none;
   }
 }

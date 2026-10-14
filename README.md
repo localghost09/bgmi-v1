@@ -60,8 +60,16 @@ The live workspace is split into two dedicated pages so a match is easier to run
 - A sticky **lobby index** strip lists every squad with its placement, points and health dot; click a
   chip to jump straight to that squad card. `Search`, the `All / Active / Eliminated` filter chips and
   per-squad / bulk collapse narrow the page further.
-- **Comfortable / Compact** density switch: compact drops the chrome and shrinks the cards so the whole
-  16-squad lobby is visible at a glance (the choice is remembered in the browser).
+- **GRID switch — Auto / 1 / 2 / 3 columns.** The default is **2 columns**, which halves the scrolling;
+  every control (team finish, placement, roster edit, per-player finish, damage and status) stays on
+  screen in all four modes, and screens below 1150px fall back to a single column.
+- **Comfortable / Compact density.** Compact turns each squad's four player tiles into single-line
+  roster strips, so a card is roughly a third shorter. Both switches are remembered in the browser.
+
+Measured effect on a 1920×1080 operator screen (16-squad lobby, same information): a squad card drops
+from ≈520px to ≈344px, which takes the squad list from ≈3.9 screens of scrolling to ≈2.6 — and ≈2.0
+with 3 columns. Collapsing all squads compresses the whole lobby into roughly one screen for a fast
+overview.
 
 ## Automatic placements (positions 9–16 score zero, by rule)
 

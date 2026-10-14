@@ -433,11 +433,32 @@
                     </button>
                   </div>
                   <div class="squad-collapse-tools">
-                    <div class="density-switch" id="densitySwitch" role="group" aria-label="Card density">
-                      <button type="button" data-density="comfortable" class="active">
+                    <div
+                      class="seg-switch"
+                      id="columnsSwitch"
+                      role="group"
+                      aria-label="Squad grid columns"
+                    >
+                      <span class="seg-switch-label">GRID</span>
+                      <button type="button" data-columns="auto">Auto</button>
+                      <button type="button" data-columns="1">1</button>
+                      <button type="button" data-columns="2" class="active">
+                        2
+                      </button>
+                      <button type="button" data-columns="3">3</button>
+                    </div>
+                    <div
+                      class="seg-switch"
+                      id="densitySwitch"
+                      role="group"
+                      aria-label="Card density"
+                    >
+                      <button type="button" data-density="comfortable">
                         Comfortable
                       </button>
-                      <button type="button" data-density="compact">Compact</button>
+                      <button type="button" data-density="compact" class="active">
+                        Compact
+                      </button>
                     </div>
                     <button class="btn btn-small" id="expandAllSquads">
                       Expand all
