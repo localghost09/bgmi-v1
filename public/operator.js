@@ -659,6 +659,7 @@ function renderLiveTeams() {
   }
   renderSquadIndex(teams);
   applyDensity();
+  applyTeamLayout();
   applyColumns();
   renderColumnReadout(teams.length);
   restoreGridFocus(focusInfo);
@@ -675,80 +676,45 @@ function buildSquadCard(t, rank, totalVisible) {
   const auto = placementsAreAuto(t);
   const placePts = placementPointsFor(t);
   const card = document.createElement("article");
-  card.className = `squad-card premium ${collapsed ? "collapsed" : ""} health-${health.key}`;
+  card.className = `team-layout-card ${teamLayout}-layout ${collapsed ? "collapsed" : ""} health-${health.key}`;
   card.dataset.squadCard = String(t.id);
-  card.innerHTML = `
-      <header class="squad-card-head">
-        <div class="squad-identity">
-          <span class="squad-rank" title="Position in this lobby view">${String(rank).padStart(2, "0")}</span>
-          <span class="squad-crest">
-            ${t.logo ? `<img src="${safe(t.logo)}" alt="" onerror="this.remove()">` : `<i>${safe((t.name || "?").trim().charAt(0).toUpperCase())}</i>`}
-          </span>
-          <div class="squad-name">
-            <small>SQUAD #${String(t.id).padStart(2, "0")} · GROUP ${safe(t.group || "A")}</small>
-            <b title="${safe(t.name)}">${safe(t.name)}</b>
-            <span class="squad-health health-${health.key}">${health.label}</span>
-          </div>
-        </div>
-        <div class="squad-head-right">
-          <div class="squad-score">
-            <small>MATCH PTS</small>
-            <strong class="squad-pts">${Number(t.matchPoints) || 0}</strong>
-          </div>
-          <button class="squad-collapse" data-squad-toggle="${t.id}" type="button" aria-expanded="${collapsed ? "false" : "true"}" title="Show or hide squad detail">
-            ${collapsed ? "▸" : "▾"}
-          </button>
-        </div>
-      </header>
-      <div class="squad-summary">
-        <span class="squad-stat"><small>FINISHES</small><b>${Number(t.kills) || 0}</b></span>
-        <span class="squad-stat ${placement ? "" : "pending"}"><small>PLACEMENT</small><b>${placement || "—"}</b></span>
-        <span class="squad-stat ${placePts ? "scoring" : "zero"}"><small>PLACE PTS</small><b>+${placePts}</b></span>
-        <span class="squad-stat"><small>SQUAD STATE</small><b>${alive} ALIVE${knocked ? ` · ${knocked} KNOCK` : ""}</b></span>
-      </div>
-      <div class="squad-actions">
-        <div class="squad-finish-block">
-          <button class="finish-plus" data-action="plus" data-id="${t.id}">+ FINISH</button>
-          <button class="finish-minus" data-action="minus" data-id="${t.id}" title="Remove one finish">−</button>
-        </div>
-        <div class="placement-block ${auto ? "auto" : "manual"}">
-          <label class="placement-label">PLACE
-            <input class="placement-input" type="number" min="0" max="${ids.size}" value="${placement}" data-placement="${t.id}" aria-label="Placement for ${safe(t.name)}">
-          </label>
-          <span class="placement-mode" title="${auto ? "Derived from the elimination order" : "Typed in by the operator"}">${auto ? "AUTO" : "MANUAL"}</span>
-          ${auto ? "" : `<button class="placement-auto-btn" data-placement-auto="${t.id}" type="button" title="Hand this squad back to automatic placement">↺ AUTO</button>`}
-        </div>
-        <button class="squad-edit-btn" data-action="edit" data-id="${t.id}">Edit roster</button>
-      </div>
-      <div class="player-ops">
-        ${players
-          .map(
-            (p, i) => `
-          <div class="player-op status-${safe(p.status)}">
-            <div class="player-op-head">
-              ${p.avatarUrl ? `<img class="player-avatar-mini" src="${safe(p.avatarUrl)}" alt="" onerror="this.remove()">` : `<span class="player-avatar-mini fallback">${safe((p.name || "P").trim().charAt(0).toUpperCase())}</span>`}
-              <div class="player-op-id">
-                <small>PLAYER ${String(i + 1).padStart(2, "0")}</small>
-                <b title="${safe(p.name)} · UID ${safe(p.uid || "not entered")}">${safe(p.name)}</b>
-                <small class="player-uid-note">UID ${safe(p.uid || "NOT ENTERED")}</small>
-              </div>
-              <div class="player-op-fin">${playerStatsChips(p, Number(p.kills) || 0)}</div>
-            </div>
-            <div class="player-op-actions">
-              <button class="player-kill-plus" data-player-kill-team="${t.id}" data-player-kill-index="${i}" data-amount="1">+ FINISH</button>
-              <button class="player-kill-minus" data-player-kill-team="${t.id}" data-player-kill-index="${i}" data-amount="-1">−</button>
-              <label class="player-damage-control">DMG <input type="number" min="0" max="50000" step="1" value="${Number(p.damage) || 0}" data-player-damage-team="${t.id}" data-player-damage-index="${i}" aria-label="Damage for ${safe(p.name)}"></label>
-            </div>
-            <div class="player-statuses">
-              <button class="alive ${p.status === "alive" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="alive">ALIVE</button>
-              <button class="knocked ${p.status === "knocked" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="knocked">KNOCK</button>
-              <button class="eliminated ${p.status === "eliminated" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="eliminated">ELIM</button>
-            </div>
-          </div>`,
-          )
-          .join("")}
-      </div>`;
+  card.innerHTML = teamLayout === "scoreboard"
+    ? buildScoreboardLayout(t, rank, collapsed, ids, placement, auto, placePts, players)
+    : buildFigmaLayout(t, rank, collapsed, ids, placement, auto, placePts, players);
   return card;
+}
+
+function teamActionMarkup(t, ids, placement, auto) {
+  return `<div class="team-action-row">
+    <div class="team-finish-control"><button class="team-finish-plus" data-action="plus" data-id="${t.id}">＋ FINISH</button><button class="team-finish-minus" data-action="minus" data-id="${t.id}" aria-label="Decrease team finishes">−</button></div>
+    <label class="team-placement-control">PLACE <input type="number" min="0" max="${ids.size}" value="${placement}" data-placement="${t.id}" aria-label="Placement for ${safe(t.name)}"></label>
+    <span class="team-placement-mode">${auto ? "AUTO" : "MANUAL"}</span>
+    ${auto ? "" : `<button class="team-placement-auto" data-placement-auto="${t.id}" type="button">↺ AUTO</button>`}
+    <button class="team-edit" data-action="edit" data-id="${t.id}">Edit roster</button>
+  </div>`;
+}
+
+function playerActionMarkup(t, p, i, style) {
+  const icon = style === "scoreboard" ? { alive: "▶", knocked: "●", eliminated: "☠" } : { alive: "ALIVE", knocked: "KNOCK", eliminated: "ELIM" };
+  return `<div class="${style}-player ${p.status}">
+    <div class="player-identity-block"><span class="player-avatar">${safe((p.name || "P").trim().charAt(0).toUpperCase())}</span><div><small>PLAYER ${String(i + 1).padStart(2, "0")}</small><b title="${safe(p.name)}">${safe(p.name)}</b><span>UID ${safe(p.uid || "NOT ENTERED")}</span></div></div>
+    <div class="player-finish-badge">${Number(p.kills) || 0} FIN</div>
+    <div class="player-damage-control-new"><b>DMG</b><input type="number" min="0" max="50000" value="${Number(p.damage) || 0}" data-player-damage-team="${t.id}" data-player-damage-index="${i}" aria-label="Damage for ${safe(p.name)}"><button data-player-kill-team="${t.id}" data-player-kill-index="${i}" data-amount="-1" aria-label="Decrease ${safe(p.name)} finishes">−</button><button data-player-kill-team="${t.id}" data-player-kill-index="${i}" data-amount="1" aria-label="Increase ${safe(p.name)} finishes">＋</button></div>
+    <div class="player-status-controls"><button class="${p.status === "alive" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="alive" title="Alive">${icon.alive}</button><button class="${p.status === "knocked" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="knocked" title="Knock">${icon.knocked}</button><button class="${p.status === "eliminated" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="eliminated" title="Eliminated">${icon.eliminated}</button></div>
+  </div>`;
+}
+
+function buildFigmaLayout(t, rank, collapsed, ids, placement, auto, placePts, players) {
+  const health = squadHealth(t);
+  return `<header class="figma-team-header"><div class="figma-team-identity"><span class="figma-rank">${String(rank).padStart(2, "0")}</span><span class="figma-mark">${safe((t.name || "G").trim().charAt(0).toUpperCase())}</span><div><small>SQUAD #${String(t.id).padStart(2, "0")} · GROUP ${safe(t.group || "A")}</small><h3>${safe(t.name)}</h3><span class="figma-health">${health.label}</span></div></div><div class="figma-points"><small>MATCH PTS</small><strong>${Number(t.matchPoints) || 0}</strong></div><button class="figma-collapse" data-squad-toggle="${t.id}" type="button" aria-expanded="${!collapsed}">${collapsed ? "▸" : "⌄"}</button></header><div class="figma-summary"><div><small>FINISHES</small><b>${Number(t.kills) || 0}</b></div><div><small>PLACEMENT</small><b>${placement || "—"}</b></div><div><small>PLACE PTS</small><b>+${placePts}</b></div></div><div class="figma-detail" ${collapsed ? "hidden" : ""}>${teamActionMarkup(t, ids, placement, auto)}<div class="figma-player-grid">${players.map((p, i) => `<article class="figma-player-card">${playerActionMarkup(t, p, i, "figma")}</article>`).join("")}</div></div>`;
+}
+
+function buildScoreboardLayout(t, rank, collapsed, ids, placement, auto, placePts, players) {
+  return `<header class="scoreboard-team-header"><div class="scoreboard-team-identity"><span class="scoreboard-number">${String(rank).padStart(2, "0")}</span><span class="scoreboard-mark">${safe((t.name || "G").trim().charAt(0).toUpperCase())}</span><div><h3>${safe(t.name)}</h3><p>GROUP ${safe(t.group || "A")}</p></div></div><div class="scoreboard-stats"><div><small>★ FIN</small><strong>${Number(t.kills) || 0}</strong></div><div><small>⚑ PLACE</small><strong>${placement || "—"}</strong></div><div><small>★ PTS</small><strong>${Number(t.matchPoints) || 0}</strong></div></div><button class="scoreboard-collapse" data-squad-toggle="${t.id}" type="button" aria-expanded="${!collapsed}">${collapsed ? "▸" : "⌄"}</button></header><div class="scoreboard-detail" ${collapsed ? "hidden" : ""}><div class="scoreboard-controls"><div class="scoreboard-action-row"><button class="scoreboard-finish" data-action="plus" data-id="${t.id}">＋ FINISH</button><button class="scoreboard-minus" data-action="minus" data-id="${t.id}" aria-label="Decrease team finishes">−</button><label class="scoreboard-place">PLACE <input type="number" min="0" max="${ids.size}" value="${placement}" data-placement="${t.id}" aria-label="Placement for ${safe(t.name)}"></label><button class="scoreboard-place-plus" type="button" data-placement-step="1" data-placement-team="${t.id}" aria-label="Increase placement">＋</button><button class="scoreboard-auto ${auto ? "is-on" : ""}" type="button" data-auto-layout="${t.id}" aria-pressed="${auto}">${auto ? "AUTO" : "MANUAL"}</button><button class="scoreboard-settings" type="button" title="Scoring settings" aria-label="Scoring settings">⚙</button></div></div><div class="scoreboard-player-list">${players.map((p, i) => `<article class="scoreboard-player-row">${scoreboardPlayerMarkup(t, p, i)}</article>`).join("")}</div></div>`;
+}
+
+function scoreboardPlayerMarkup(t, p, i) {
+  return `<div class="scoreboard-player"><span class="scoreboard-player-number">${String(i + 1).padStart(2, "0")}</span><div class="player-identity-block"><div><b title="${safe(p.name)}">${safe(p.name)}</b><span>UID ${safe(p.uid || "NOT ENTERED")}</span></div></div><div class="player-damage-control-new"><b>DMG</b><input type="number" min="0" max="50000" value="${Number(p.damage) || 0}" data-player-damage-team="${t.id}" data-player-damage-index="${i}" aria-label="Damage for ${safe(p.name)}"><button data-player-kill-team="${t.id}" data-player-kill-index="${i}" data-amount="-1" aria-label="Decrease ${safe(p.name)} finishes">−</button><button data-player-kill-team="${t.id}" data-player-kill-index="${i}" data-amount="1" aria-label="Increase ${safe(p.name)} finishes">＋</button></div><div class="player-status-controls"><button class="${p.status === "alive" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="alive" title="Alive">▶</button><button class="${p.status === "knocked" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="knocked" title="Knock">●</button><button class="${p.status === "eliminated" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="eliminated" title="Eliminated">☠</button></div></div>`;
 }
 
 function renderMatchTeamPicker() {
@@ -876,6 +842,24 @@ $("liveTeams").addEventListener("change", (e) => {
     });
 });
 $("liveTeams").addEventListener("click", (e) => {
+  const placementStep = e.target.closest("[data-placement-step]");
+  if (placementStep) {
+    const input = $("liveTeams").querySelector(
+      `[data-placement="${placementStep.dataset.placementTeam}"]`,
+    );
+    const value = Math.max(0, Number(input?.value) || 0) + Number(placementStep.dataset.placementStep);
+    socket.emit("team:update", {
+      teamId: Number(placementStep.dataset.placementTeam),
+      updates: { placement: value, placementAuto: value < 1 },
+    });
+    return;
+  }
+  const autoLayout = e.target.closest("[data-auto-layout]");
+  if (autoLayout) {
+    if (state.matchStatus === "verified") return toast("This match is verified.");
+    socket.emit("placements:auto-mode", { enabled: autoLayout.getAttribute("aria-pressed") !== "true" });
+    return;
+  }
   const kill = e.target.closest("[data-player-kill-team]");
   if (kill) {
     socket.emit("player:kill", {
@@ -974,14 +958,18 @@ $("liveStatusFilter")?.addEventListener("click", (e) => {
 --------------------------------------------------------------------------- */
 const DENSITY_KEY = "bgmi.squadDensity";
 const COLUMNS_KEY = "bgmi.squadColumns";
-const COLUMN_CHOICES = ["auto", "1", "2", "3"];
+const TEAM_LAYOUT_KEY = "bgmi.teamLayout";
+const COLUMN_CHOICES = ["auto", "1", "2", "3", "4"];
 let squadDensity = "compact";
-let squadColumns = "2";
+let squadColumns = "4";
+let teamLayout = "figma";
 try {
   const stored = window.localStorage?.getItem(DENSITY_KEY);
   if (stored === "compact" || stored === "comfortable") squadDensity = stored;
   const storedColumns = window.localStorage?.getItem(COLUMNS_KEY);
   if (COLUMN_CHOICES.includes(storedColumns)) squadColumns = storedColumns;
+  const storedLayout = window.localStorage?.getItem(TEAM_LAYOUT_KEY);
+  if (storedLayout === "figma" || storedLayout === "scoreboard") teamLayout = storedLayout;
 } catch {
   /* storage unavailable — keep the defaults */
 }
@@ -997,6 +985,15 @@ function applyDensity() {
       b.classList.toggle("active", b.dataset.density === squadDensity),
     );
 }
+function applyTeamLayout() {
+  const grid = $("liveTeams");
+  if (grid) grid.dataset.teamLayout = teamLayout;
+  $("teamLayoutSwitch")
+    ?.querySelectorAll("[data-team-layout]")
+    .forEach((button) =>
+      button.classList.toggle("active", button.dataset.teamLayout === teamLayout),
+    );
+}
 /* An explicit choice is honoured on every screen wide enough to hold the
    panels; only a genuinely tiny viewport drops to a single column. This is why
    "2" means two squads side by side (2 x 8 for a 16-squad lobby) instead of
@@ -1004,7 +1001,7 @@ function applyDensity() {
 // Minimum viewport that still leaves a usable panel: two panels need ~900px,
 // three need ~1500px, otherwise the 2 x 2 player grid inside each panel gets
 // squeezed below a comfortable size.
-const COLUMN_MIN_VIEWPORT = { 2: 900, 3: 1500 };
+const COLUMN_MIN_VIEWPORT = { 2: 900, 3: 1500, 4: 1200 };
 function viewportWidth() {
   return (
     window.document.documentElement.clientWidth ||
@@ -1018,6 +1015,8 @@ function effectiveColumns() {
   if (squadColumns === "2") return vw >= COLUMN_MIN_VIEWPORT[2] ? 2 : 1;
   if (squadColumns === "3")
     return vw >= COLUMN_MIN_VIEWPORT[3] ? 3 : vw >= COLUMN_MIN_VIEWPORT[2] ? 2 : 1;
+  if (squadColumns === "4")
+    return vw >= COLUMN_MIN_VIEWPORT[4] ? 4 : vw >= COLUMN_MIN_VIEWPORT[3] ? 3 : vw >= COLUMN_MIN_VIEWPORT[2] ? 2 : 1;
   // Auto: responsive auto-fill around a 430px panel.
   const grid = $("liveTeams");
   const width = grid && grid.clientWidth ? grid.clientWidth : vw - 300;
@@ -1085,6 +1084,17 @@ $("densitySwitch").addEventListener("click", (e) => {
     /* ignore */
   }
   applyDensity();
+});
+$("teamLayoutSwitch").addEventListener("click", (e) => {
+  const button = e.target.closest("[data-team-layout]");
+  if (!button) return;
+  teamLayout = button.dataset.teamLayout;
+  try {
+    window.localStorage?.setItem(TEAM_LAYOUT_KEY, teamLayout);
+  } catch {
+    /* ignore */
+  }
+  renderLiveTeams();
 });
 /* Fast jump from the lobby index straight to a squad card. */
 $("squadIndex").addEventListener("click", (e) => {
