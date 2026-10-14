@@ -9,7 +9,7 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar">
+      <aside class="sidebar" id="appSidebar">
         <a class="brand" href="/operator"
           ><span class="brand-mark">BG</span
           ><span
@@ -73,15 +73,30 @@
       </aside>
       <main class="main-area">
         <header class="topbar">
-          <div>
-            <div class="crumb">
-              TOURNAMENT OPERATIONS <span>/</span>
-              <b id="pageCrumb">OVERVIEW</b>
+          <div class="topbar-lead">
+            <button
+              class="icon-btn nav-toggle"
+              id="navToggle"
+              type="button"
+              aria-controls="appSidebar"
+              aria-expanded="true"
+              title="Hide the navigation panel"
+            >
+              <span class="nav-toggle-bars" aria-hidden="true"
+                ><i></i><i></i><i></i></span
+              >
+              <span class="sr-only">Toggle the navigation panel</span>
+            </button>
+            <div class="topbar-heading">
+              <div class="crumb">
+                TOURNAMENT OPERATIONS <span>/</span>
+                <b id="pageCrumb">OVERVIEW</b>
+              </div>
+              <h1 id="pageTitle">Production overview</h1>
+              <p id="pageDescription">
+                Monitor match operations, scoring and broadcast readiness.
+              </p>
             </div>
-            <h1 id="pageTitle">Production overview</h1>
-            <p id="pageDescription">
-              Monitor match operations, scoring and broadcast readiness.
-            </p>
           </div>
           <div class="top-actions">
             <div class="onair"><span></span><b id="onAirText">PRE-SHOW</b></div>
@@ -1189,6 +1204,17 @@
         </footer>
       </main>
     </div>
+    <button
+      class="nav-toggle-float"
+      id="navToggleFloat"
+      type="button"
+      aria-controls="appSidebar"
+      aria-expanded="false"
+      title="Show the navigation panel"
+    >
+      <span class="nav-toggle-bars" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="sr-only">Show the navigation panel</span>
+    </button>
     <dialog
       class="master-reset-dialog"
       id="masterResetDialog"

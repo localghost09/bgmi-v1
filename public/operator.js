@@ -46,6 +46,52 @@ $("logoutBtn")?.addEventListener("click", async () => {
     location.replace("/login");
   }
 });
+// ---------------------------------------------------------------------------
+// NAVIGATION PANEL TOGGLE
+// The operator can fold the sidebar away so the squad controls (or any table)
+// get the whole screen, and unfold it with the same button. The choice is
+// remembered per browser, and a floating button keeps the panel reachable while
+// scrolling through a long live-controls page.
+// ---------------------------------------------------------------------------
+const SIDEBAR_KEY = "bgmi.sidebarHidden";
+const sidebarCollapsed = () =>
+  document.body.classList.contains("sidebar-collapsed");
+function applySidebarState(hidden, { persist = true } = {}) {
+  document.body.classList.toggle("sidebar-collapsed", Boolean(hidden));
+  const button = $("navToggle");
+  if (button) {
+    button.setAttribute("aria-expanded", String(!hidden));
+    button.title = hidden
+      ? "Show the navigation panel"
+      : "Hide the navigation panel";
+  }
+  const floating = $("navToggleFloat");
+  if (floating) {
+    floating.setAttribute("aria-expanded", String(hidden));
+    floating.title = hidden
+      ? "Show the navigation panel"
+      : "Hide the navigation panel";
+  }
+  if (!persist) return;
+  try {
+    localStorage.setItem(SIDEBAR_KEY, hidden ? "1" : "0");
+  } catch {
+    /* private browsing — the toggle still works for this session */
+  }
+}
+function toggleSidebar() {
+  applySidebarState(!sidebarCollapsed());
+}
+$("navToggle")?.addEventListener("click", toggleSidebar);
+$("navToggleFloat")?.addEventListener("click", toggleSidebar);
+try {
+  applySidebarState(localStorage.getItem(SIDEBAR_KEY) === "1", {
+    persist: false,
+  });
+} catch {
+  applySidebarState(false, { persist: false });
+}
+
 socket.on("connect_error", (err) => {
   if ((err.message || "").toLowerCase().includes("unauthorized"))
     location.replace("/login");

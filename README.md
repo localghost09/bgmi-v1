@@ -199,6 +199,15 @@ Changing the password asks for the administrator login password again, which als
 The dialog also offers a **Factory reset** option, which additionally erases team registrations and
 approved rosters. Both scopes require the reset password.
 
+## Collapsible navigation panel
+
+The operator top bar carries a hamburger button (left of the page title). Click it to fold the left
+navigation panel away and give the live squad controls — or any wide table — the whole screen; click it
+again to bring the panel back. While the panel is hidden a small floating button sits at the bottom-left
+so it can be reopened anywhere on a long page, and the choice is remembered per browser
+(`localStorage → bgmi.sidebarHidden`). On screens 1600px or wider the live-controls grid gains a third
+squad column once the panel is out of the way.
+
 ## Security notes
 
 - Keep local development bound to `127.0.0.1` unless you configure a secure hosted deployment.

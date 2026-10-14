@@ -5666,3 +5666,127 @@ body {
   color: #ffce66;
   border-radius: 3px;
 }
+
+/* ---------- Collapsible navigation panel (full-width workspace toggle) ---------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.topbar-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.topbar-heading {
+  min-width: 0;
+}
+.nav-toggle {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+}
+.nav-toggle-bars {
+  display: grid;
+  gap: 4px;
+  width: 16px;
+  pointer-events: none;
+}
+.nav-toggle-bars i {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease;
+}
+body.sidebar-collapsed .nav-toggle {
+  border-color: #7a5a22;
+  background: #241d0f;
+  color: #ffce66;
+}
+/* The bars fold into an arrow pointing back at the hidden panel. */
+body.sidebar-collapsed .nav-toggle .nav-toggle-bars i:nth-child(1) {
+  transform: scaleX(0.55);
+  transform-origin: right center;
+}
+body.sidebar-collapsed .nav-toggle .nav-toggle-bars i:nth-child(2) {
+  opacity: 0.45;
+}
+body.sidebar-collapsed .nav-toggle .nav-toggle-bars i:nth-child(3) {
+  transform: scaleX(0.55);
+  transform-origin: right center;
+}
+.nav-toggle-float {
+  position: fixed;
+  left: 16px;
+  bottom: 18px;
+  z-index: 90;
+  width: 42px;
+  height: 42px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #6b5427;
+  border-radius: 3px;
+  background: linear-gradient(140deg, #241f13, #12140f);
+  color: #ffce66;
+  box-shadow: 0 12px 30px #000a;
+  cursor: pointer;
+}
+body.sidebar-collapsed .nav-toggle-float {
+  display: inline-flex;
+}
+.nav-toggle-float:hover {
+  border-color: #ffbd36;
+  color: #ffd88a;
+}
+/* Collapse the grid column and slide the panel out of the way. */
+.app-shell {
+  transition: grid-template-columns 0.2s ease;
+}
+body.sidebar-collapsed .app-shell {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+body.sidebar-collapsed .sidebar {
+  width: 0;
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-color: transparent;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+}
+body.sidebar-collapsed .main-area {
+  max-width: none;
+}
+/* Wide screens can afford a third squad column once the panel is out of the way. */
+@media (min-width: 1600px) {
+  body.sidebar-collapsed .live-team-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 850px) {
+  .topbar-lead {
+    gap: 10px;
+  }
+  .nav-toggle {
+    width: 34px;
+    height: 34px;
+  }
+}
