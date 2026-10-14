@@ -44,6 +44,34 @@ npm start
 - Admin-only health API: `http://localhost:3000/api/health`
 - Admin-only CSV export: `http://localhost:3000/api/standings.csv`
 
+## Skip the login while developing (open the dashboard directly)
+
+For local demos, rehearsals and preview sandboxes you can open the operator dashboard without creating an
+administrator account or typing a password:
+
+```bash
+npm run dev:open        # same server, but DEV_BYPASS_LOGIN=true
+```
+
+- `/operator` and `/` go straight to the production dashboard, and `/login` redirects to it.
+- Browser requests and the operator socket both receive a temporary `dev-operator` **admin** session, so
+  live match controls, broadcast scenes, standings and CSV/health APIs all behave exactly as after a real sign-in.
+- The sign-out button is hidden in this mode because signing out would only re-enter the same dashboard.
+
+How it works, and how to turn it off:
+
+- The switch is the environment variable `DEV_BYPASS_LOGIN` (`true`, `1`, `on` or `yes`). It is **off unless
+  you set it**, and `npm start` / `npm run dev` keep the normal administrator login.
+- Disable it with `DEV_BYPASS_LOGIN=false npm run dev:open`, or by unsetting the variable in your `.env`.
+- While the bypass is active the server also relaxes `X-Frame-Options` so the dashboard can be embedded in
+  preview panes and OBS browser sources. The flag never writes an administrator password, so turning it off
+  restores the normal sign-in screen exactly as before.
+- Tournaments, teams, registrations and sessions keep using the regular storage backend (local JSON or
+  MongoDB), so nothing is demo-only once you sign in for real.
+
+> Never enable `DEV_BYPASS_LOGIN` on a public or production broadcast server: it grants full operator access
+> to anyone who can reach the port.
+
 ## Overlay setup in OBS
 
 1. Set OBS base canvas/output to 1920×1080 (16:9) for the included layouts.

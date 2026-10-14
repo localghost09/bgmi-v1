@@ -36,6 +36,21 @@ function sessionSecret() {
 const sessionStore = MONGODB_URI ? MongoStore.create({ mongoUrl: MONGODB_URI, dbName: MONGODB_DB, collectionName: 'bgmi_sessions', ttl: 60 * 60 * 12, autoRemove: 'native' }) : undefined;
 const sessionMiddleware = session({ name: 'bgmi.sid', secret: sessionSecret(), resave: false, saveUninitialized: false, rolling: true, store: sessionStore, cookie: { httpOnly: true, sameSite: 'strict', secure: process.env.COOKIE_SECURE === 'true', maxAge: 12 * 60 * 60 * 1000 } });
 
+// ---------------------------------------------------------------------------
+// DEVELOPMENT LOGIN BYPASS
+// Start the server with DEV_BYPASS_LOGIN=true (`npm run dev:open`) to walk
+// straight into the operator dashboard without an administrator sign-in.
+// Every browser gets an in-memory "dev-operator" admin session, so the REST
+// routes and the operator socket work exactly as they do after a real login.
+// It is OFF by default and must never be enabled on a public broadcast server.
+// ---------------------------------------------------------------------------
+const DEV_BYPASS_LOGIN = ['1', 'true', 'on', 'yes', 'enabled'].includes(String(process.env.DEV_BYPASS_LOGIN || '').trim().toLowerCase());
+const DEV_BYPASS_USER = { username: 'dev-operator', role: 'admin', accountId: null, email: null, phone: null, captainName: null };
+function developmentLoginBypass(req, _res, next) {
+  if (DEV_BYPASS_LOGIN && req.session && !isAdminUser(req.session.user)) req.session.user = { ...DEV_BYPASS_USER };
+  next();
+}
+
 const BROADCAST_STATES = ['pre-show', 'stream-start', 'countdown', 'caster', 'format', 'lineup', 'live', 'chicken-dinner', 'frag-leaders', 'results', 'overall', 'mvp', 'map-feed', 'intermission', 'technical-difficulties', 'hidden'];
 const PLAYER_STATUSES = ['alive', 'knocked', 'eliminated'];
 const MATCH_STATUSES = ['upcoming', 'live', 'awaiting-verification', 'verified'];
@@ -207,16 +222,22 @@ async function readAdmin() { try { return JSON.parse(await fs.promises.readFile(
 function loginSession(req, user) { return new Promise((resolve, reject) => req.session.regenerate(err => { if (err) return reject(err); req.session.user = { username: user.username, role: user.role || 'admin', accountId: user.accountId || null, email: user.email || null, phone: user.phone || null, captainName: user.captainName || null }; req.session.save(saveErr => saveErr ? reject(saveErr) : resolve()); })); }
 
 app.disable('x-powered-by');
-app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
+app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');
+  // Dev bypass runs inside sandbox/preview viewers and OBS browser sources, so allow framing there only.
+  res.setHeader('X-Frame-Options', DEV_BYPASS_LOGIN ? 'ALLOWALL' : 'SAMEORIGIN');
+  res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
 app.use(express.json({ limit: '100kb' }));
 app.use(sessionMiddleware);
 io.engine.use(sessionMiddleware);
+// Give every request and socket handshake the bypass operator session (dev only).
+app.use(developmentLoginBypass);
+io.engine.use(developmentLoginBypass);
 // Protect the operator HTML before static-file handling, including path-prefix variants.
 app.use('/operator.html', requireAuth);
 app.use(express.static(path.join(__dirname, 'public'), { index: false, dotfiles: 'deny' }));
 app.get('/', (_, res) => res.redirect('/operator'));
-app.get('/login', (_, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
-app.get('/login.html', (_, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/login', (_, res) => DEV_BYPASS_LOGIN ? res.redirect('/operator') : res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/login.html', (_, res) => DEV_BYPASS_LOGIN ? res.redirect('/operator') : res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/operator', requireAuth, (_, res) => res.sendFile(path.join(__dirname, 'public', 'operator.html')));
 app.get('/operator.html', requireAuth, (_, res) => res.sendFile(path.join(__dirname, 'public', 'operator.html')));
 app.get('/overlay', (_, res) => res.sendFile(path.join(__dirname, 'public', 'overlay.html')));
@@ -283,7 +304,7 @@ app.post('/api/registrations', sameOrigin, registrationLimiter, requireCaptain, 
 });
 app.get('/api/registrations.csv', requireAuth, (_,res)=>{ const rows=[['Status','Team','College / Club','Captain','Email','Phone','Group Preference','Assigned Group','Assigned Team','Player 1 UID','Player 2 UID','Player 3 UID','Player 4 UID','Submitted At'],...(tournament.registrations||[]).map(r=>[r.status,r.teamName,r.college,r.captainName,r.email,r.phone,r.groupPreference,r.assignedGroup,r.assignedTeamId||'',r.playerUids?.[0]||'',r.playerUids?.[1]||'',r.playerUids?.[2]||'',r.playerUids?.[3]||'',r.submittedAt])]; const csv=rows.map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n'); res.setHeader('Content-Type','text/csv; charset=utf-8');res.setHeader('Content-Disposition','attachment; filename="bgmi-registrations.csv"');res.send(csv); });
 app.get('/api/auth/status', async (_, res) => { const admin = await readAdmin(); res.json({ configured: Boolean(admin), setupAllowed: !admin }); });
-app.get('/api/auth/me', (req, res) => isAdminUser(req.session?.user) ? res.json({ authenticated: true, user: req.session.user }) : res.status(401).json({ authenticated: false }));
+app.get('/api/auth/me', (req, res) => isAdminUser(req.session?.user) ? res.json({ authenticated: true, user: req.session.user, loginBypass: DEV_BYPASS_LOGIN }) : res.status(401).json({ authenticated: false, loginBypass: DEV_BYPASS_LOGIN }));
 app.post('/api/auth/setup', sameOrigin, authLimiter, async (req, res) => {
   const existing = await readAdmin();
   if (existing) return res.status(409).json({ error: 'Administrator is already configured. Please sign in.' });
@@ -536,5 +557,5 @@ async function initializeStorage() {
   storageMode = 'MongoDB primary · JSON recovery snapshot';
 }
 initializeStorage().then(() => {
-  server.listen(PORT, HOST, () => console.log(`\nBGMI Broadcast V4.8.1 Tactical Broadcast Arena\nHost    : ${HOST}\nOperator: http://localhost:${PORT}/operator\nLogin   : http://localhost:${PORT}/login\nRegister: http://localhost:${PORT}/register\nOverlay : http://localhost:${PORT}/overlay\nHealth  : http://localhost:${PORT}/api/health\nStorage : ${storageMode}\n`));
+  server.listen(PORT, HOST, () => console.log(`\nBGMI Broadcast V4.8.1 Tactical Broadcast Arena\nHost    : ${HOST}\nOperator: http://localhost:${PORT}/operator\nLogin   : ${DEV_BYPASS_LOGIN ? 'BYPASSED (DEV_BYPASS_LOGIN=true) - /operator opens directly, development only' : 'http://localhost:' + PORT + '/login'}\nRegister: http://localhost:${PORT}/register\nOverlay : http://localhost:${PORT}/overlay\nHealth  : http://localhost:${PORT}/api/health\nStorage : ${storageMode}\n`));
 }).catch(err => { console.error('Storage initialization failed:', err.message); process.exit(1); });

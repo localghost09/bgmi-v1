@@ -11,6 +11,15 @@ async function loadOperatorIdentity() {
       return;
     }
     const payload = await response.json();
+    // Development login bypass: the server hands out an admin session, so the
+    // sign-out button would only drop us back onto the same dashboard.
+    if (payload.loginBypass) {
+      const logout = $("logoutBtn");
+      if (logout) {
+        logout.style.display = "none";
+        logout.setAttribute("aria-hidden", "true");
+      }
+    }
     const username = payload.user?.username || "Operator";
     const name = $("operatorName");
     if (name) name.textContent = username;

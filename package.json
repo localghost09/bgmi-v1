@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "check": "node --check server.js && node --check public/operator.js && node --check public/register.js && node --check public/overlay.js && node --check public/standings.js && node --check public/login.js"
+    "check": "node --check server.js && node --check scripts/dev-open.js && node --check public/operator.js && node --check public/register.js && node --check public/overlay.js && node --check public/standings.js && node --check public/login.js",
+    "dev:open": "node scripts/dev-open.js"
   },
   "engines": {
     "node": ">=20.0.0"
