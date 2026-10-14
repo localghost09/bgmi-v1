@@ -28,8 +28,11 @@
           <button class="nav-item active" data-page="overview">
             <span>▦</span> Overview
           </button>
-          <button class="nav-item" data-page="live">
-            <span>◉</span> Live match operations
+          <button class="nav-item" data-page="match-setup">
+            <span>◈</span> Match setup
+          </button>
+          <button class="nav-item" data-page="live-controls">
+            <span>◉</span> Live squad controls
             <em id="liveNavStatus">READY</em>
           </button>
           <button class="nav-item" data-page="registrations">
@@ -156,10 +159,10 @@
               </div>
               <div class="workflow" id="workflow"></div>
               <div class="panel-actions">
-                <button class="btn btn-primary" data-goto="live">
-                  Open live controls →</button
-                ><button class="btn" data-goto="broadcast">
-                  Show control →
+                <button class="btn btn-primary" data-goto="match-setup">
+                  Open match setup →</button
+                ><button class="btn" data-goto="live-controls">
+                  Live squad controls →
                 </button>
               </div>
             </article>
@@ -202,18 +205,41 @@
           </article>
         </section>
 
-        <section class="page" id="page-live">
+        <section class="page" id="page-match-setup">
           <div class="section-banner">
             <div>
-              <div class="eyebrow">LIVE MATCH OPERATIONS</div>
-              <h2>Match control desk</h2>
+              <div class="eyebrow">MATCH CONFIGURATION</div>
+              <h2>Match setup &amp; squad selection</h2>
               <p>
-                Record live events, manage squad status, then verify final
-                results before publishing.
+                Pick the lobby for this match, set the map and confirm the squad
+                lineup. Everything you save here drives the live squad controls.
               </p>
             </div>
-            <div class="status-pill" id="matchStatusPill">● UPCOMING</div>
+            <div class="status-pill" id="matchSetupStatusPill">● UPCOMING</div>
           </div>
+          <ol class="setup-steps">
+            <li class="current">
+              <span class="setup-step-icon">01</span>
+              <div>
+                <b>Match setup &amp; squad selection</b>
+                <small>Map, lobby and the 16-squad lineup</small>
+              </div>
+            </li>
+            <li>
+              <span class="setup-step-icon">02</span>
+              <div>
+                <b>Live squad controls</b>
+                <small>Finishes, player status and rosters on one page</small>
+              </div>
+            </li>
+            <li>
+              <span class="setup-step-icon">03</span>
+              <div>
+                <b>Verify &amp; publish</b>
+                <small>Lock the official result snapshot</small>
+              </div>
+            </li>
+          </ol>
           <article class="panel match-setup">
             <div class="panel-head">
               <div>
@@ -313,11 +339,11 @@
             </div>
             <div class="toolbar">
               <button class="btn btn-primary" id="saveMatchConfig">
-                Save match & lineup</button
+                Save match &amp; lineup</button
               ><button class="btn btn-green" id="startMatch">
                 ▶ Start match</button
               ><button class="btn btn-amber" id="endMatch">
-                ■ End & review results</button
+                ■ End &amp; review results</button
               ><button class="btn btn-danger" id="resetMatch">
                 Reset current inputs
               </button>
@@ -327,6 +353,33 @@
               lock scores.
             </p>
           </article>
+          <div class="setup-return-bar">
+            <div class="setup-bar-copy">
+              <b id="setupBarTitle">Ready to start Match 01</b>
+              <small id="setupBarMeta">Group A · Erangel · 16 squads selected</small>
+            </div>
+            <div class="setup-bar-actions">
+              <button class="btn" id="openLiveControls" type="button">
+                Open live squad controls →</button
+              ><button class="btn btn-green" id="startMatchTop" type="button">
+                ▶ Start match</button
+              >
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="page-live-controls">
+          <div class="section-banner">
+            <div>
+              <div class="eyebrow">SQUAD EVENT CONTROLS</div>
+              <h2>Live squad controls</h2>
+              <p>
+                One dedicated workspace for the active lobby: match inputs,
+                roster edits and player status for all selected squads.
+              </p>
+            </div>
+            <div class="status-pill" id="liveControlsStatusPill">● UPCOMING</div>
+          </div>
           <div class="live-layout">
             <div>
               <div class="live-list-head">
@@ -337,9 +390,59 @@
                     reflected on the overlay.
                   </p>
                 </div>
-                <span class="count-chip" id="liveTeamCount">96 SQUADS</span>
+                <div class="live-head-tools">
+                  <label class="squad-search"
+                    ><span>SEARCH</span
+                    ><input
+                      id="liveTeamSearch"
+                      placeholder="Squad name or ID…"
+                      autocomplete="off"
+                  /></label>
+                  <span class="count-chip" id="liveTeamCount">96 SQUADS</span>
+                </div>
+              </div>
+              <div class="squad-tools" id="squadTools">
+                <button class="btn btn-small" id="backToSetup" type="button">
+                  ← Match setup &amp; squad selection</button
+                >
+                <div class="squad-filter-chips" id="liveStatusFilter">
+                  <button
+                    type="button"
+                    class="squad-filter-chip active"
+                    data-live-filter="all"
+                  >
+                    All squads <b id="liveFilterAllCount">0</b>
+                  </button>
+                  <button
+                    type="button"
+                    class="squad-filter-chip"
+                    data-live-filter="live"
+                  >
+                    Active <b id="liveFilterActiveCount">0</b>
+                  </button>
+                  <button
+                    type="button"
+                    class="squad-filter-chip"
+                    data-live-filter="finished"
+                  >
+                    Eliminated <b id="liveFilterOutCount">0</b>
+                  </button>
+                </div>
+                <div class="squad-collapse-tools">
+                  <button class="btn btn-small" id="expandAllSquads">
+                    Expand all
+                  </button>
+                  <button class="btn btn-small" id="collapseAllSquads">
+                    Collapse all
+                  </button>
+                </div>
               </div>
               <div id="liveTeams" class="live-team-grid"></div>
+              <div
+                id="liveTeamsPager"
+                class="squad-pager hidden"
+                aria-label="Squad page navigation"
+              ></div>
             </div>
             <aside class="panel event-rail">
               <div class="panel-head">

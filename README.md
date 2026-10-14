@@ -44,6 +44,25 @@ npm start
 - Admin-only health API: `http://localhost:3000/api/health`
 - Admin-only CSV export: `http://localhost:3000/api/standings.csv`
 
+## Match setup and live squad controls (V4.9)
+
+The live workspace is split into two dedicated pages so a match is easier to run:
+
+- **Match setup** (`Match setup` in the sidebar) — match number, phase, map, team filter and the
+  16-squad lineup picker. It closes with a sticky action bar showing `Group · Map · squads selected`
+  (including an "unsaved lineup changes" warning).
+- **Live squad controls** (`Live squad controls`) — the full-page squad workspace. Pressing
+  **Start match** verifies the lineup, starts the match and drops you straight onto this page, where
+  every selected squad has one premium card holding its match points, finishes, placement and the four
+  player tiles (finish, damage and Alive / Knock / Out status).
+- Squad cards follow your saved lineup order and never reorder while you are entering scores; a
+  *SQUADS 1–8 of 16* pager shows eight cards per page, and cards can be collapsed individually or all
+  at once. `Search`, the `All / Active / Eliminated` filter chips and the pager all work on top of the
+  same controls.
+- Nothing about the tournament logic changed: every button and field emits exactly the same socket
+  events (`team:kill`, `player:update`, `player:damage`, `player:kill`, `team:update`, `match:confirm`,
+  `match:status`, `match:finalize`) and the verify flow still lives on the live page.
+
 ## Skip the login while developing (open the dashboard directly)
 
 For local demos, rehearsals and preview sandboxes you can open the operator dashboard without creating an
