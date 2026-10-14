@@ -6113,8 +6113,9 @@ body.sidebar-collapsed .main-area {
   .scoreboard-player .player-status-controls { grid-column: 1 / -1; }
 }
 
-/* The scoreboard reference is intentionally a single native-size panel. A
-   three-column scoreboard makes the header and player controls unreadable. */
+/* Scoreboard, single column: one native-size 1024px panel, exactly as the
+   GODL reference. Multi-column (2/3/4) is handled further below with a pure
+   zoom-out, so the panel design itself never changes. */
 .live-team-grid[data-team-layout="scoreboard"] {
   grid-template-columns: minmax(0, 1024px) !important;
   justify-content: center;
@@ -6170,68 +6171,40 @@ body.sidebar-collapsed .main-area {
 .scoreboard-player .player-status-controls { grid-column: auto; gap: 10px; }
 .scoreboard-player .player-status-controls button { min-height: 60px; border: 3px solid #0a3553; border-radius: 14px; font-size: 29px !important; }
 
-/* Compact reference-preserving mode for four teams per row. The component
-   hierarchy stays identical to the supplied GODL scoreboard; only its scale
-   and grid density change. */
+/* Scoreboard multi-column mode: a pure zoom-out. The panel keeps its native
+   1024px GODL design completely untouched — no font, spacing or layout rule
+   inside the card changes. operator.js measures the real grid track width and
+   sets --scoreboard-zoom (track / 1024) so the whole card scales down until
+   2, 3 or 4 panels fit side by side, exactly like zooming the card out. */
+.live-team-grid[data-team-layout="scoreboard"][data-cols="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+.live-team-grid[data-team-layout="scoreboard"][data-cols="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
 .live-team-grid[data-team-layout="scoreboard"][data-cols="4"] {
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+.live-team-grid[data-team-layout="scoreboard"][data-cols="2"],
+.live-team-grid[data-team-layout="scoreboard"][data-cols="3"],
+.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] {
   justify-content: stretch;
-  gap: 8px !important;
+  gap: 12px !important;
 }
+.live-team-grid[data-team-layout="scoreboard"][data-cols="2"] .scoreboard-layout,
+.live-team-grid[data-team-layout="scoreboard"][data-cols="3"] .scoreboard-layout,
 .live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-layout {
-  padding: 4px;
-  border-width: 2px;
-  border-radius: 13px;
+  /* Native design width, scaled to the track by the zoom factor. */
+  width: 1024px;
+  zoom: var(--scoreboard-zoom, 1);
+  justify-self: center;
 }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-team-header {
-  grid-template-columns: minmax(0, 1fr) 27px;
-  min-height: 86px;
-  padding: 5px;
-  border-radius: 11px;
+/* Browsers without CSS zoom fall back to the readable single panel. */
+@supports not (zoom: 1) {
+  .live-team-grid[data-team-layout="scoreboard"][data-cols="2"],
+  .live-team-grid[data-team-layout="scoreboard"][data-cols="3"],
+  .live-team-grid[data-team-layout="scoreboard"][data-cols="4"] {
+    grid-template-columns: minmax(0, 1024px) !important;
+    justify-content: center;
+  }
 }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-team-identity { gap: 4px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-number,
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-mark {
-  width: 27px;
-  height: 36px;
-  border-radius: 6px;
-  border-width: 1px;
-  font-size: 13px;
-}
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-team-identity h3 { font-size: 10px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-team-identity p { margin-top: 2px; font-size: 7px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-stats { height: 30px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-stats small { font-size: 6px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-stats strong { font-size: 12px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-collapse { width: 25px; height: 36px; border-radius: 6px; font-size: 14px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-detail { margin-top: 5px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-controls { padding: 4px; border-radius: 8px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-controls .scoreboard-action-row { grid-template-columns: 1fr 23px; gap: 3px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-finish,
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-minus,
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-place,
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-place-plus,
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-auto,
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-settings {
-  min-height: 25px;
-  border-width: 1px;
-  border-radius: 5px;
-  font-size: 7px;
-}
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-minus,
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-place-plus { font-size: 13px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-place { grid-column: 1 / -1; gap: 3px; padding: 0 3px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-place input { width: 25px; min-height: 17px; border-width: 1px; border-radius: 3px; font-size: 9px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-auto { grid-column: 1; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-settings { font-size: 10px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player-list { margin-top: 5px; padding: 0 4px; border-width: 1px; border-radius: 8px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player-row { padding: 5px 0; border-bottom-width: 1px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player { grid-template-columns: 20px minmax(0, 1fr); gap: 3px; min-height: 66px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player-number { width: 20px; height: 27px; border-radius: 4px; font-size: 8px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player .player-identity-block b { font-size: 8px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player .player-identity-block span { margin-top: 2px; font-size: 6px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player .player-damage-control-new { grid-column: 2; gap: 2px; font-size: 6px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player .player-damage-control-new input { width: 24px; min-height: 20px; border-width: 1px; border-radius: 4px; font-size: 8px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player .player-damage-control-new button { width: 18px; min-height: 20px; border-width: 1px; border-radius: 4px; font-size: 10px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player .player-status-controls { grid-column: 2; gap: 2px; }
-.live-team-grid[data-team-layout="scoreboard"][data-cols="4"] .scoreboard-player .player-status-controls button { min-height: 20px; border-width: 1px; border-radius: 4px; font-size: 10px !important; }

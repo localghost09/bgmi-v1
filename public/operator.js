@@ -1011,6 +1011,17 @@ function viewportWidth() {
 }
 function effectiveColumns() {
   const vw = viewportWidth();
+  /* Scoreboard panels zoom to fit whatever track they are given, so the
+     operator's requested column count works on any screen — the viewport
+     minimums below only guard the fixed-size Figma panels. */
+  if (teamLayout === "scoreboard") {
+    if (squadColumns === "auto") {
+      const grid = $("liveTeams");
+      const width = grid && grid.clientWidth ? grid.clientWidth : vw - 300;
+      return Math.max(1, Math.min(4, Math.floor((width + 12) / 442)));
+    }
+    return Math.max(1, Math.min(4, Number(squadColumns) || 1));
+  }
   if (squadColumns === "1") return 1;
   if (squadColumns === "2") return vw >= COLUMN_MIN_VIEWPORT[2] ? 2 : 1;
   if (squadColumns === "3")
@@ -1022,10 +1033,29 @@ function effectiveColumns() {
   const width = grid && grid.clientWidth ? grid.clientWidth : vw - 300;
   return Math.max(1, Math.min(4, Math.floor((width + 12) / 442)));
 }
+/* Scoreboard multi-column mode: the GODL panel is a fixed 1024px design, so
+   instead of restyling it we zoom the whole card to the measured grid track
+   width — a pure zoom-out that keeps every proportion inside the card intact. */
+const SCOREBOARD_PANEL_WIDTH = 1024;
+function applyScoreboardZoom(grid, cols) {
+  if (!grid) return;
+  if (teamLayout !== "scoreboard" || cols < 2) {
+    grid.style.removeProperty("--scoreboard-zoom");
+    return;
+  }
+  const tracks = String(getComputedStyle(grid).gridTemplateColumns || "");
+  const trackWidth = parseFloat(tracks.split(" ")[0]);
+  if (!Number.isFinite(trackWidth) || trackWidth <= 0) return;
+  const zoom = Math.max(0.15, Math.min(1, trackWidth / SCOREBOARD_PANEL_WIDTH));
+  grid.style.setProperty("--scoreboard-zoom", String(Math.round(zoom * 10000) / 10000));
+}
 function applyColumns() {
   const grid = $("liveTeams");
   const cols = effectiveColumns();
-  if (grid) grid.dataset.cols = String(cols);
+  if (grid) {
+    grid.dataset.cols = String(cols);
+    applyScoreboardZoom(grid, cols);
+  }
   $("columnsSwitch")
     ?.querySelectorAll("[data-columns]")
     .forEach((b) =>
