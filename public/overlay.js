@@ -3,6 +3,10 @@ const $ = id => document.getElementById(id);
 let lastState = null;
 let lastBroadcastState = null;
 let lastRenderedScene = null;
+// Preview aid: /overlay?scene=overall pins this browser tab to one scene without
+// touching the live broadcast state, so any scene can be checked in a normal tab.
+const BROADCAST_STATES_PREVIEW=['pre-show','stream-start','countdown','caster','format','lineup','live','chicken-dinner','frag-leaders','results','overall','mvp','map-feed','intermission','technical-difficulties','hidden'];
+const PREVIEW_SCENE=(()=>{try{const v=new URLSearchParams(location.search).get('scene');return v&&BROADCAST_STATES_PREVIEW.includes(v)?v:''}catch{return ''}})();
 let overallPage = 0;
 let sceneWipeTimer = null;
 let loadedThemeUrl = '';
@@ -74,7 +78,7 @@ function render(data) {
   $('matchNumber').textContent=String(data.currentMatch||1).padStart(2,'0');$('headerMap').textContent=`${data.currentMap||'ERANGEL'} · GROUP ${data.currentGroup||'A'}`;
   $('countdownMatchLabel').textContent=`MATCH ${String(data.currentMatch||1).padStart(2,'0')} · GROUP ${data.currentGroup||'A'}`;$('countdownMapLabel').textContent=data.currentMap||'ERANGEL';
   $('mapFeedMapName').textContent=data.currentMap||'ERANGEL';$('mapFeedMatch').textContent=`MATCH ${String(data.currentMatch||1).padStart(2,'0')} · GROUP ${data.currentGroup||'A'}`;
-  const stateName=data.broadcastState||'live';
+  const stateName=PREVIEW_SCENE||data.broadcastState||'live';
   const sceneChanged=lastRenderedScene!==stateName;
   if(sceneChanged){if(stateName==='results'||stateName==='overall')overallPage=0;if(stateName==='lineup')lineupPage=0;if(lastRenderedScene!==null)playCinematicTransition(stateName);}
   $('broadcast').className=`broadcast state-${stateName}`;lastRenderedScene=stateName;syncThemeMusic(data,stateName);

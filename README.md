@@ -148,6 +148,9 @@ How it works, and how to turn it off:
 2. Add the gameplay/observer capture as a source.
 3. Add a Browser Source above gameplay with URL `http://localhost:3000/overlay`, width `1920`, height `1080`, FPS `30`.
 4. Keep the source loaded during the show; the operator state updates using Socket.IO.
+   To preview one scene in an ordinary browser tab without disturbing the live show, open
+   `http://localhost:3000/overlay?scene=overall` (any scene name works: `lineup`, `results`, `live`, …).
+   The flag only affects that one tab — OBS and every other viewer keep following the broadcast state.
 5. In Broadcast Control, use the existing show flow: stream-start slate → caster → tournament format → team lineup → caster hype → 30-second countdown → live match → current MVP / map feed / results / overall standings.
 6. In `Overall standings` every squad is already on screen — 01–08 down the left table, 09–16 down the right — and nothing rotates. In `Match results`, the table beside the winner panel still rotates 1–8 → 9–16 every 8.5 seconds.
 7. In `Match lineup`, the saved roster is displayed in order as two slides of eight teams. For live lineup data, confirm the match team picker is saved first.
