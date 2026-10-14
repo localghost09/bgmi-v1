@@ -1082,6 +1082,26 @@ function renderColumnReadout(visibleCount) {
       ? `Your screen fits ${cols} panel(s) side by side — showing ${cols} × ${rows}. Widen the window for ${squadColumns} columns.`
       : `Columns × rows for the squads currently shown (${cols} × ${rows})`;
 }
+/* The sidebar slides in/out and changes the squad grid's width without any
+   window resize. Re-measure the grid whenever its width changes so the
+   scoreboard panels re-zoom and re-count their columns to fill the new track
+   (otherwise the old zoom leaves an empty gap after the panel is closed). */
+const liveTeamsTrack = $("liveTeams");
+let trackRemeasureTimer;
+if (liveTeamsTrack && typeof ResizeObserver === "function") {
+  let lastTrackWidth = liveTeamsTrack.clientWidth;
+  new ResizeObserver(() => {
+    const width = liveTeamsTrack.clientWidth;
+    if (width === lastTrackWidth) return;
+    lastTrackWidth = width;
+    clearTimeout(trackRemeasureTimer);
+    trackRemeasureTimer = setTimeout(() => {
+      if (!state) return;
+      applyColumns();
+      renderColumnReadout(filteredLiveTeams().length);
+    }, 150);
+  }).observe(liveTeamsTrack);
+}
 /* Keep the layout honest when the operator resizes or splits the screen. */
 let resizeTimer;
 window.addEventListener("resize", () => {
