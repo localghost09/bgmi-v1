@@ -5220,10 +5220,6 @@ body {
   font: 800 8px var(--mono) !important;
 }
 @media (max-width: 720px) {
-  .live-team-grid,
-  .live-team-grid.density-compact {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
   .squad-index {
     position: static;
   }
@@ -5266,7 +5262,7 @@ body {
 }
 /* Re-asserted after the legacy 980px/720px rules so a chosen 2-up layout is not
    silently collapsed on a laptop or a split-screen view. */
-@media (min-width: 760px) {
+@media (min-width: 900px) {
   .live-team-grid[data-cols="2"] {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
@@ -5278,86 +5274,44 @@ body {
   }
 }
 
-/* ---------- Roster strips: one row per player (grid modes 2 and 3) ---------- */
-.live-team-grid.density-compact .squad-card.premium .player-ops {
-  grid-template-columns: minmax(0, 1fr) !important;
-  gap: 6px !important;
-  padding: 10px 14px 12px;
+/* ---------- Player cards: a 2 x 2 grid inside every squad panel ---------- */
+/* Player 1 | Player 2 on the first row, Player 3 | Player 4 on the second, in
+   every column mode, so an operator reads a whole squad without scrolling. */
+.live-team-grid .squad-card.premium .player-ops {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-auto-rows: minmax(0, auto);
 }
+/* Narrow panels (3-up or a small laptop): keep 2 x 2 and let the internals
+   breathe vertically instead of squeezing the name. */
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op,
 .live-team-grid.density-compact .squad-card.premium .player-op {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  padding: 6px 8px !important;
-  border-radius: 9px !important;
+  gap: 6px !important;
 }
 .live-team-grid.density-compact .squad-card.premium .player-op-head {
-  /* Small basis so a panel stays one line tall even at ~300px wide. */
-  flex: 1 1 118px;
-  min-width: 0;
-  gap: 7px;
-  padding-bottom: 0;
-  border-bottom: 0;
+  flex-wrap: wrap;
+  gap: 6px;
 }
-.live-team-grid.density-compact .squad-card.premium .player-op-actions {
-  flex: 0 0 auto;
+.live-team-grid.density-compact .squad-card.premium .player-op-fin {
+  flex: 1 1 100%;
+  flex-direction: row;
   gap: 5px;
+  align-items: center;
 }
-.live-team-grid.density-compact .squad-card.premium .player-statuses {
-  flex: 0 0 auto;
-  width: auto;
-  padding: 3px !important;
-  gap: 4px !important;
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op-fin,
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op-head {
+  flex-wrap: wrap;
 }
-.live-team-grid.density-compact .squad-card.premium .player-statuses button {
-  min-width: 44px;
-  min-height: 28px;
-  padding: 0 8px !important;
-}
-.live-team-grid.density-compact .squad-card.premium .player-kill-plus {
-  flex: 0 0 auto;
-  min-height: 28px;
-  padding: 0 10px;
-  font-size: 8px;
-}
-.live-team-grid.density-compact .squad-card.premium .player-kill-minus {
-  width: 30px;
-  min-height: 28px;
-}
-.live-team-grid.density-compact .squad-card.premium .player-damage-control {
-  min-height: 28px;
-  padding: 0 7px;
-  gap: 5px;
-}
-.live-team-grid.density-compact .squad-card.premium .player-damage-control input {
-  width: 52px;
-  min-height: 20px;
-}
-/* The UID is reference data, not match input — keep it in Teams & groups. */
-.live-team-grid.density-compact .squad-card.premium .player-uid-note {
-  display: none !important;
-}
-.live-team-grid.density-compact .player-avatar-mini {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  font-size: 10px;
-}
-.live-team-grid.density-compact .player-op-id small {
-  font-size: 7px !important;
-}
-.live-team-grid.density-compact .squad-card.premium .player-op-head b {
-  font-size: 11px !important;
-}
-.live-team-grid.density-compact .squad-card.premium .player-op {
-  gap: 6px 8px;
-}
-.live-team-grid.density-compact .player-op-fin {
+.live-team-grid[data-cols="3"] .squad-card.premium .player-op-fin {
+  flex: 1 1 100%;
   flex-direction: row;
   gap: 5px;
 }
-
+/* One player per row only on genuinely tiny screens. */
+@media (max-width: 560px) {
+  .live-team-grid .squad-card.premium .player-ops {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
 /* ---------- Tighter card chrome in grid modes ---------- */
 .live-team-grid.density-compact .squad-card.premium .squad-card-head {
   padding: 11px 14px;
@@ -5464,7 +5418,7 @@ body {
 }
 
 /* ---------- Very small screens: a single column, everything else is JS ---------- */
-@media (max-width: 759px) {
+@media (max-width: 899px) {
   .live-team-grid[data-cols] {
     grid-template-columns: minmax(0, 1fr) !important;
   }

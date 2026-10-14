@@ -54,7 +54,9 @@ The live workspace is split into two dedicated pages so a match is easier to run
 - **Live squad controls** (`Live squad controls`) — the full-page squad workspace. Pressing
   **Start match** verifies the lineup, starts the match and drops you straight onto this page, where
   every selected squad has one premium card holding its match points, finishes, placement and the four
-  player tiles (finish, damage and Alive / Knock / Out status).
+  player tiles (finish, damage and Alive / Knock / **ELIM** status). Inside every panel the four player
+  tiles sit in their **own 2 × 2 grid** — player 1 left, player 2 right, players 3 & 4 on the row below —
+  so no player is hidden behind another and every control is a single click away.
 - **All 16 squads render on one page** — no paging, no *Next* button to reach squads 9–16. Each card
   follows your saved lineup order and never reorders while you are entering scores.
 - A sticky **lobby index** strip lists every squad with its placement, points and health dot; click a
@@ -64,11 +66,14 @@ The live workspace is split into two dedicated pages so a match is easier to run
   side**: team 1 left, team 2 right, then teams 3 & 4 on the next row — 2 columns × 8 rows for a
   16-squad lobby. Every control (team finish, placement, roster edit, per-player finish, damage and
   status) stays on screen in all four modes.
-- An explicit choice is **honoured, not silently overridden**: 2 panels stay 2 panels from ~760px
-  viewport width upward (laptops, split screens, narrow preview panes). Only below 760px does it fall
-  back to one column, and the readout turns amber and explains why in its tooltip instead of lying.
-- **Full cards / Short cards density.** Short cards turn each squad's four player tiles into single-line
-  roster strips, so a card is roughly a third shorter. Both switches are remembered in the browser.
+- An explicit choice is **honoured, not silently overridden**: 2 panels stay 2 panels from 900px
+  viewport width upward (laptops, split screens, narrow preview panes), and 3 panels need ~1500px.
+  Below 900px it falls back to one column, and the readout turns amber and explains why in its tooltip
+  instead of lying. Those floors are chosen so the 2 × 2 player grid inside each panel never gets
+  squeezed: at 3 panels the narrowest player tile is still ≈195px wide, at 2 panels ≈144px.
+- **Full cards / Short cards density.** Short cards trim the padding, the long labels and the card
+  header so a squad card is roughly a third shorter, while keeping the same 2 × 2 player grid. The grid
+  only collapses to one player per row below 560px. Both switches are remembered in the browser.
 
 Measured effect on a 1920×1080 operator screen (16-squad lobby, same information): a squad card drops
 from ≈520px to ≈344px, which takes the squad list from ≈3.9 screens of scrolling to ≈2.6 — and ≈2.0
@@ -79,16 +84,26 @@ overview.
 
 Placements no longer have to be typed in one squad at a time:
 
-1. When a squad's fourth player is marked **OUT**, the server records the elimination and immediately
+1. When a squad's fourth player is marked **ELIM**, the server records the elimination and immediately
    derives the placement — the first squad wiped from a 16-squad lobby is **16th**, the next is **15th**,
    and so on. Positions 9–16 resolve to **0 placement points** straight from the scoring table.
 2. The last squad standing is placed **1st** automatically and banks the chicken-dinner placement points.
-3. A squad's card shows `AUTO` next to its placement, plus a `PLACE PTS` figure (`+0` for 9th–16th,
+3. **Every position belongs to exactly one squad.** Placements are always a permutation of 1…16: two
+   squads can never hold the same position or the same placement points. The server refuses a duplicate
+   outright — typing a position another squad already holds is rejected with
+   `Placement N is already taken by TEAM X…` and the original entry is kept. Automatic squads route
+   around manually pinned positions instead of colliding with them.
+4. **A wipe takes the whole squad, knocked players included.** If three players are knocked and the
+   operator marks the last surviving player **ELIM**, there is nobody left to revive them, so all four
+   players become eliminated and the squad takes its placement. Marking a player **ALIVE** again brings
+   back only the players that the wipe took out (explicitly eliminated players stay out), releases the
+   placement and puts the squad back into the fight.
+5. A squad's card shows `AUTO` next to its placement, plus a `PLACE PTS` figure (`+0` for 9th–16th,
    `+1` for 8th, and so on), so the rule is visible while you work.
-4. **Manual override for re-verification stays available.** Typing a placement pins that squad to
+6. **Manual override for re-verification stays available.** Typing a placement pins that squad to
    `MANUAL` and it is never overwritten — the automation keeps recomputing every other squad around it.
    Press `↺ AUTO` on the card, or `↺ Re-derive placements` in the toolbar, to hand it back.
-5. The toolbar states what is at stake (`12 alive · next squad wiped takes 5th place`), and warns when
+7. The toolbar states what is at stake (`12 alive · next squad wiped takes 5th place`), and warns when
    squads still need a placement. `AUTO PLACEMENTS · ON/OFF` switches the whole lobby to fully manual
    entry, and a match that ends with squads still alive is reported by the existing verify checks so the
    operator can type the remaining positions before publishing.

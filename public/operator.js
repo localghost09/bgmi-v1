@@ -409,7 +409,7 @@ function squadHealth(t) {
   const players = t.players || [];
   const eliminated = players.filter((p) => p.status === "eliminated").length;
   if (eliminated >= players.length && players.length)
-    return { key: "out", label: "ELIMINATED", short: "OUT" };
+    return { key: "out", label: "ELIMINATED", short: "ELIM" };
   if (eliminated > 0 || players.some((p) => p.status === "knocked"))
     return { key: "damaged", label: "IN FIGHT", short: "FIGHT" };
   if (Number(t.kills) > 0 || Number(t.placement) > 0)
@@ -696,7 +696,7 @@ function buildSquadCard(t, rank, totalVisible) {
             <div class="player-statuses">
               <button class="alive ${p.status === "alive" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="alive">ALIVE</button>
               <button class="knocked ${p.status === "knocked" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="knocked">KNOCK</button>
-              <button class="eliminated ${p.status === "eliminated" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="eliminated">OUT</button>
+              <button class="eliminated ${p.status === "eliminated" ? "selected" : ""}" data-player="${t.id}" data-index="${i}" data-status="eliminated">ELIM</button>
             </div>
           </div>`,
           )
@@ -813,13 +813,15 @@ $("liveTeams").addEventListener("click", (e) => {
   }
 });
 $("liveTeams").addEventListener("change", (e) => {
-  if (e.target.matches("[data-placement]"))
-    // placementAuto stays false: a typed placement wins over the automation
-    // until the operator resets that squad.
+  if (e.target.matches("[data-placement]")) {
+    const value = Number(e.target.value);
+    // A typed placement wins over the automation until the operator resets that
+    // squad; clearing the field back to 0 hands it straight back to the engine.
     socket.emit("team:update", {
       teamId: Number(e.target.dataset.placement),
-      updates: { placement: Number(e.target.value), placementAuto: false },
+      updates: { placement: value, placementAuto: value < 1 },
     });
+  }
   if (e.target.matches("[data-player-damage-team]"))
     socket.emit("player:damage", {
       teamId: Number(e.target.dataset.playerDamageTeam),
@@ -953,7 +955,10 @@ function applyDensity() {
    panels; only a genuinely tiny viewport drops to a single column. This is why
    "2" means two squads side by side (2 x 8 for a 16-squad lobby) instead of
    silently collapsing to one column on a laptop or a split screen. */
-const COLUMN_MIN_VIEWPORT = { 2: 760, 3: 1180 };
+// Minimum viewport that still leaves a usable panel: two panels need ~900px,
+// three need ~1500px, otherwise the 2 x 2 player grid inside each panel gets
+// squeezed below a comfortable size.
+const COLUMN_MIN_VIEWPORT = { 2: 900, 3: 1500 };
 function viewportWidth() {
   return (
     window.document.documentElement.clientWidth ||
