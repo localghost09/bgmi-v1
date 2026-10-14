@@ -5445,3 +5445,224 @@ body {
 .seg-switch.narrowed .seg-switch-readout {
   color: #f6d79b;
 }
+
+/* ---------- Master reset: protected destructive dialog + reset password setup ---------- */
+.subtle-tag.warn {
+  border-color: #7a4a22 !important;
+  background: #241a0f !important;
+  color: #ffc46a !important;
+}
+.master-reset-dialog {
+  width: min(660px, calc(100vw - 26px));
+  max-height: min(88vh, 820px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #6d3a2b;
+  border-radius: 4px;
+  background: linear-gradient(150deg, #1a1512, #0d0f0d 62%);
+  color: #f1ece3;
+  box-shadow: 0 34px 90px #000c;
+}
+.master-reset-dialog::backdrop {
+  background: #04060bcc;
+  backdrop-filter: blur(2px);
+}
+.master-reset-dialog .mrd-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid #3a2a20;
+  background: linear-gradient(120deg, #2a1a14, #14140f);
+}
+.master-reset-dialog .mrd-head h3 {
+  margin: 4px 0 0;
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: 19px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.master-reset-dialog .icon-btn {
+  border: 1px solid #4d3a2c;
+  background: #1b1b15;
+  color: #e8d9bf;
+  width: 30px;
+  height: 30px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.mrd-lead {
+  margin: 14px 20px 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #d9cbb6;
+}
+.mrd-scopes {
+  display: grid;
+  gap: 9px;
+  margin: 14px 20px 0;
+}
+.mrd-scope {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border: 1px solid #3c3629;
+  border-radius: 3px;
+  background: #121412;
+  cursor: pointer;
+}
+.mrd-scope:has(input:checked) {
+  border-color: #8a5a22;
+  background: #1d1a12;
+  box-shadow: inset 3px 0 #ffb725;
+}
+.mrd-scope input {
+  margin-top: 3px;
+  accent-color: #ffb725;
+}
+.mrd-scope span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.mrd-scope b {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: #ffe0a8;
+}
+.mrd-scope small {
+  font-size: 9.5px;
+  line-height: 1.55;
+  color: #a89c88;
+}
+.mrd-wipe {
+  margin: 14px 20px 0;
+  padding: 12px 14px 12px 28px;
+  border: 1px dashed #4b3a2b;
+  border-radius: 3px;
+  background: #100f0d;
+  color: #c3b7a3;
+  font-size: 10px;
+  line-height: 1.7;
+}
+.mrd-wipe li::marker {
+  color: #ff7f4d;
+}
+.mrd-wipe .mrd-factory-only {
+  display: none;
+  color: #ff9a8a;
+}
+.mrd-wipe.factory .mrd-factory-only {
+  display: list-item;
+}
+.master-reset-dialog .mrd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 15px 20px 0;
+}
+.master-reset-dialog .mrd-field label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #cbbfa9;
+}
+.mrd-password {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.mrd-password input {
+  flex: 1;
+  min-width: 0;
+}
+.master-reset-dialog input[type="password"],
+.master-reset-dialog input[type="text"] {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #453a2d;
+  border-radius: 3px;
+  background: #0c0e0c;
+  color: #f5efe3;
+  font: 12px var(--mono);
+  letter-spacing: 1px;
+}
+.master-reset-dialog input:focus {
+  outline: none;
+  border-color: #a8762f;
+  box-shadow: 0 0 0 2px #ffb72522;
+}
+.master-reset-dialog .mrd-password .btn {
+  flex: 0 0 auto;
+  border-radius: 3px;
+}
+.mrd-note {
+  margin: 9px 20px 0;
+  font-size: 9.5px;
+  color: #93876f;
+}
+.mrd-error {
+  margin: 11px 20px 0;
+  padding: 10px 12px;
+  border: 1px solid #8a3a45;
+  border-radius: 3px;
+  background: #2a1218;
+  color: #ffbfc9;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.mrd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 18px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid #33281f;
+  background: #0f100e;
+}
+.mrd-actions .btn {
+  min-width: 120px;
+}
+.mrd-actions .btn[disabled] {
+  opacity: 0.6;
+  cursor: wait;
+}
+#resetProtectionPanel .settings-grid input {
+  font-family: var(--mono);
+  letter-spacing: 0.6px;
+}
+@media (max-width: 560px) {
+  .mrd-actions {
+    flex-direction: column-reverse;
+  }
+  .mrd-actions .btn {
+    width: 100%;
+  }
+}
+
+/* The master reset is the only control that erases finished matches, so it reads
+   heavier than the ordinary red buttons next to it in the match setup bar. */
+.btn-master-reset {
+  border-color: #c2472a !important;
+  background: linear-gradient(110deg, #6d1d15, #3d1410) !important;
+  color: #ffd9c4 !important;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  box-shadow: inset 0 0 0 1px #ff6a3d22;
+}
+.btn-master-reset:hover {
+  border-color: #ff7a45 !important;
+  background: linear-gradient(110deg, #85241a, #4c1811) !important;
+}
+
+.master-reset-dialog .mrd-settings-link {
+  margin: 10px 20px 0;
+  border-color: #6b5427;
+  background: #1e1a10;
+  color: #ffce66;
+  border-radius: 3px;
+}

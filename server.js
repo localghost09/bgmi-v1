@@ -21,6 +21,9 @@ const DATA_FILE = path.join(DATA_DIR, 'tournament.json');
 const ADMIN_FILE = path.join(DATA_DIR, 'admin.json');
 const CAPTAINS_FILE = path.join(DATA_DIR, 'captains.json');
 const SECRET_FILE = path.join(DATA_DIR, '.session-secret');
+const RESET_PASSWORD_FILE = path.join(DATA_DIR, 'reset-password.json');
+const RESET_PASSWORD_MIN = 8;
+const RESET_PASSWORD_MAX = 128;
 const MONGODB_URI = process.env.MONGODB_URI || '';
 const MONGODB_DB = process.env.MONGODB_DB || 'bgmi_broadcast';
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -186,6 +189,55 @@ function syncAutoPlacements(data=tournament) {
   if (stillPlaying.length === 1 && free.length) stillPlaying[0].placement = free[free.length - 1];
 }
 function resetAutoPlacements(data=tournament) { data.placementSequence = 0; data.teams.forEach(t => { t.placementAuto = true; t.eliminatedAt = null; }); }
+// ---------------------------------------------------------------------------
+// MASTER RESET
+// The competition scope wipes every number the event has produced — live match
+// inputs, live standings, overall standings, finalized match history, MVP and
+// top-fragger records — and returns the controls to Match 1 / pre-show. The
+// registration desk, approved rosters, group allocation, scoring rules and
+// production identity are deliberately preserved: team registrations are not
+// competition results and must survive a rehearsal reset.
+// ---------------------------------------------------------------------------
+function clearCompetitionData(data = tournament) {
+  data.matchHistory = [];
+  data.eventLog = [];
+  data.placementSequence = 0;
+  data.autoPlacements = true;
+  data.currentMatch = 1;
+  data.matchStatus = 'upcoming';
+  data.broadcastState = 'pre-show';
+  data.production.countdownEndsAt = null;
+  data.production.streamStartEndsAt = null;
+  data.production.mvpSelection = null;
+  data.production.mvpMode = 'match';
+  for (const team of data.teams) {
+    team.kills = 0;
+    team.placement = 0;
+    team.placementAuto = true;
+    team.eliminatedAt = null;
+    team.matchPoints = 0;
+    team.overallPoints = 0;
+    team.overallKills = 0;
+    team.overallMatches = 0;
+    team.players = (team.players || []).map(player => ({ ...player, status: 'alive', kills: 0, damage: 0, autoEliminated: false }));
+  }
+  // Keep the lineup on the squads that are actually registered, so the next
+  // rehearsal starts from the approved roster instead of placeholder slots.
+  const groupLineup = data.teams.filter(t => t.registered && t.group === data.currentGroup).slice(0, 16).map(t => t.id);
+  const registeredLineup = data.teams.filter(t => t.registered).slice(0, 16).map(t => t.id);
+  const lineup = groupLineup.length >= 2 ? groupLineup : registeredLineup;
+  if (lineup.length >= 2) data.matchTeamIds = lineup;
+  else if (!Array.isArray(data.matchTeamIds) || data.matchTeamIds.length < 2) data.matchTeamIds = data.teams.filter(t => t.group === data.currentGroup).slice(0, 16).map(t => t.id);
+  recalculate(data);
+  return data;
+}
+function factoryResetData() {
+  const fresh = makeDefaultData();
+  fresh.tournamentName = tournament.tournamentName;
+  fresh.organizer = tournament.organizer;
+  fresh.format = tournament.format;
+  return fresh;
+}
 function recalculate(data=tournament) {
   syncAutoPlacements(data);
   const totals=new Map();
@@ -276,11 +328,17 @@ const authLimiter = (req, res, next) => {
   req.authAttemptKey = key; req.authAttemptRecord = record; next();
 };
 function sameOrigin(req, res, next) {
+  // Browsers set Sec-Fetch-Site themselves and page scripts cannot forge it, so
+  // it stays reliable when a reverse proxy or preview tunnel rewrites Host.
+  if (req.get('sec-fetch-site') === 'same-origin') return next();
   const origin = req.get('origin');
-  if (!origin) { if (req.get('sec-fetch-site') === 'same-origin') return next(); return res.status(403).json({ error: 'A same-origin browser request is required.' }); }
-  try { if (new URL(origin).host !== req.get('host')) return res.status(403).json({ error: 'Request origin rejected.' }); }
-  catch { return res.status(403).json({ error: 'Request origin rejected.' }); }
-  next();
+  if (!origin) return res.status(403).json({ error: 'A same-origin browser request is required.' });
+  const forwardedHost = String(req.get('x-forwarded-host') || '').split(',')[0].trim();
+  try {
+    const host = new URL(origin).host;
+    if (host === req.get('host') || (forwardedHost && host === forwardedHost)) return next();
+  } catch {}
+  return res.status(403).json({ error: 'Request origin rejected.' });
 }
 function requireAuth(req, res, next) {
   if (req.session && isAdminUser(req.session.user)) return next();
@@ -288,6 +346,32 @@ function requireAuth(req, res, next) {
   return res.redirect('/login');
 }
 async function readAdmin() { try { return JSON.parse(await fs.promises.readFile(ADMIN_FILE, 'utf8')); } catch { return null; } }
+// ---------------------------------------------------------------------------
+// RESET PROTECTION PASSWORD
+// A destructive "reset the whole event" action must not be one stray click
+// away, so it is unlocked by a special password that the administrator sets
+// separately from the login password. Only the bcrypt hash is stored, in its
+// own 0600 file next to the other private credentials.
+// ---------------------------------------------------------------------------
+function readResetPasswordRecord() {
+  try {
+    const record = JSON.parse(fs.readFileSync(RESET_PASSWORD_FILE, 'utf8'));
+    if (record && typeof record.passwordHash === 'string' && record.passwordHash) return record;
+  } catch {}
+  return null;
+}
+function writeResetPasswordRecord(record) {
+  const temp = `${RESET_PASSWORD_FILE}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(record, null, 2), { mode: 0o600 });
+  fs.renameSync(temp, RESET_PASSWORD_FILE);
+  try { fs.chmodSync(RESET_PASSWORD_FILE, 0o600); } catch {}
+}
+function resetPasswordStatus(admin) { const record = readResetPasswordRecord(); return { configured: Boolean(record), updatedAt: record ? record.updatedAt || null : null, updatedBy: record ? record.updatedBy || '' : '', loginPasswordRequired: Boolean(admin) }; }
+// Shared brute-force gate for password-guarded actions (15-minute window).
+const securityAttempts = new Map();
+function securityGate(key, limit) { const now = Date.now(), window = 15 * 60 * 1000; const record = securityAttempts.get(key) || { count: 0, reset: now + window }; if (now > record.reset) { record.count = 0; record.reset = now + window; } securityAttempts.set(key, record); return { blocked: record.count >= limit, record }; }
+function securityFail(record) { record.count += 1; }
+function securityClear(key) { securityAttempts.delete(key); }
 function loginSession(req, user) { return new Promise((resolve, reject) => req.session.regenerate(err => { if (err) return reject(err); req.session.user = { username: user.username, role: user.role || 'admin', accountId: user.accountId || null, email: user.email || null, phone: user.phone || null, captainName: user.captainName || null }; req.session.save(saveErr => saveErr ? reject(saveErr) : resolve()); })); }
 
 app.disable('x-powered-by');
@@ -402,7 +486,30 @@ app.post('/api/auth/login', sameOrigin, authLimiter, async (req, res) => {
   res.json({ ok: true, redirect: '/operator' });
 });
 app.post('/api/auth/logout', sameOrigin, (req, res) => { if (!req.session) return res.json({ ok: true }); req.session.destroy(err => { if (err) return res.status(500).json({ error: 'Could not close session.' }); res.clearCookie('bgmi.sid', { httpOnly: true, sameSite: 'strict', secure: process.env.COOKIE_SECURE === 'true' }); res.json({ ok: true }); }); });
-app.get('/api/health', requireAuth, (_, res) => res.json({ ok: true, service: 'bgmi-broadcast', schemaVersion: 9, connectedClients: io.engine.clientsCount, teams: tournament.teams.length, storageMode, mongoConnected: Boolean(mongoCollection), authConfigured: fs.existsSync(ADMIN_FILE) }));
+// Reset protection password: the administrator sets/changes it from Tournament
+// setup with the login password as authorisation, and every master reset has to
+// present it. A forgotten reset password is replaced by setting a new one here.
+app.get('/api/admin/reset-password', requireAuth, async (_, res) => res.json(resetPasswordStatus(await readAdmin())));
+app.post('/api/admin/reset-password', sameOrigin, requireAuth, async (req, res) => {
+  const key = `reset-password:${req.ip || req.socket.remoteAddress || 'unknown'}`;
+  const gate = securityGate(key, 10);
+  if (gate.blocked) return res.status(429).json({ error: 'Too many attempts. Wait 15 minutes and try again.' });
+  const body = req.body || {};
+  const newPassword = String(body.newPassword || '');
+  const confirmPassword = String(body.confirmPassword || '');
+  const loginPassword = String(body.loginPassword || '');
+  if (newPassword.length < RESET_PASSWORD_MIN || newPassword.length > RESET_PASSWORD_MAX) return res.status(400).json({ error: `Use a reset password between ${RESET_PASSWORD_MIN} and ${RESET_PASSWORD_MAX} characters.` });
+  if (newPassword !== confirmPassword) return res.status(400).json({ error: 'The two reset password entries do not match.' });
+  const admin = await readAdmin();
+  if (admin) {
+    if (!(await bcrypt.compare(loginPassword, admin.passwordHash))) { securityFail(gate.record); audit('auth:reset-password-denied', { username: req.session.user.username }); save(); return res.status(401).json({ error: 'Your administrator login password is incorrect.' }); }
+  } else if (!DEV_BYPASS_LOGIN) return res.status(503).json({ error: 'The tournament administrator is not configured yet.' });
+  securityClear(key);
+  writeResetPasswordRecord({ passwordHash: await bcrypt.hash(newPassword, 12), updatedAt: new Date().toISOString(), updatedBy: req.session.user.username || 'admin' });
+  commit('auth:reset-password-saved', { username: req.session.user.username });
+  res.json({ ok: true, ...resetPasswordStatus(admin) });
+});
+app.get('/api/health', requireAuth, (_, res) => res.json({ ok: true, service: 'bgmi-broadcast', schemaVersion: 9, connectedClients: io.engine.clientsCount, teams: tournament.teams.length, storageMode, mongoConnected: Boolean(mongoCollection), authConfigured: fs.existsSync(ADMIN_FILE), resetPasswordConfigured: Boolean(readResetPasswordRecord()) }));
 app.get('/api/standings.csv',requireAuth,(_,res)=>{
   const rows=[['Rank','Team ID','Team','Group','Finishes','Placement','Match Points','Overall Points','Matches Played']];
   [...tournament.teams].sort((a,b)=>b.overallPoints-a.overallPoints||b.overallKills-a.overallKills||a.name.localeCompare(b.name)).forEach((t,i)=>rows.push([i+1,t.id,t.name,t.group,t.overallKills,t.placement,t.matchPoints,t.overallPoints,t.overallMatches]));
@@ -641,10 +748,36 @@ io.on('connection',socket=>{
     if(tournament.matchStatus==='verified')return error(socket,'Verified results are locked. Choose a new match number; corrections should preserve the official record.');
     tournament.teams.forEach(t=>{t.kills=0;t.placement=0;t.matchPoints=0;t.players.forEach(p=>{p.status='alive';p.kills=0;p.damage=0});});resetAutoPlacements();tournament.matchStatus='upcoming';tournament.eventLog=[];commit('match:reset',{matchNumber:tournament.currentMatch});
   });
-  socket.on('tournament:reset',confirmation=>{
-    if (!requireOperatorSocket(socket)) return;
-    if(confirmation!=='RESET BGMI TOURNAMENT')return error(socket,'Tournament reset not confirmed.');
-    const name=tournament.tournamentName;tournament=makeDefaultData();tournament.tournamentName=name;commit('tournament:reset');
+  socket.on('tournament:master-reset',async (payload={},ack)=>{
+    const respond=result=>{ if(typeof ack==='function')ack(result); return result; };
+    if (!requireOperatorSocket(socket)) return respond({ok:false,error:'Authorized operator login required. Please sign in again.'});
+    const body=payload&&typeof payload==='object'?payload:{};
+    const scope=body.scope==='factory'?'factory':'competition';
+    const actor=(socket.request.session.user&&socket.request.session.user.username)||'operator';
+    const gateKey=`master-reset:${socket.handshake.address||'socket'}`;
+    const gate=securityGate(gateKey,10);
+    if(gate.blocked)return respond({ok:false,error:'Too many incorrect reset password attempts. Wait 15 minutes and try again.'});
+    const record=readResetPasswordRecord();
+    if(!record)return respond({ok:false,error:'No reset password is configured yet. Set one in Tournament setup → Reset protection password first.'});
+    if(!(await bcrypt.compare(String(body.password||''),record.passwordHash))){
+      securityFail(gate.record);
+      // A refused reset is part of the record: leave a trace before answering.
+      audit('tournament:master-reset-denied',{username:actor,scope});save();
+      return respond({ok:false,error:'Reset password is incorrect.'});
+    }
+    securityClear(gateKey);
+    if(countdownTimer){clearTimeout(countdownTimer);countdownTimer=null;}
+    if(streamStartTimer){clearTimeout(streamStartTimer);streamStartTimer=null;}
+    if(scope==='factory'){
+      const erased={registrations:(tournament.registrations||[]).length,registeredTeams:tournament.teams.filter(t=>t.registered).length,matches:(tournament.matchHistory||[]).length};
+      tournament=factoryResetData();
+      commit('tournament:factory-reset',{username:actor,...erased});
+      return respond({ok:true,scope,erased});
+    }
+    const cleared={matches:(tournament.matchHistory||[]).length,registeredTeams:(tournament.registrations||[]).filter(r=>r.status==='approved').length};
+    clearCompetitionData(tournament);
+    commit('tournament:master-reset',{username:actor,...cleared});
+    return respond({ok:true,scope,cleared});
   });
 });
 
