@@ -46,6 +46,52 @@ $("logoutBtn")?.addEventListener("click", async () => {
     location.replace("/login");
   }
 });
+// ---------------------------------------------------------------------------
+// NAVIGATION PANEL TOGGLE
+// The operator can fold the sidebar away so the squad controls (or any table)
+// get the whole screen, and unfold it with the same button. The choice is
+// remembered per browser, and a floating button keeps the panel reachable while
+// scrolling through a long live-controls page.
+// ---------------------------------------------------------------------------
+const SIDEBAR_KEY = "bgmi.sidebarHidden";
+const sidebarCollapsed = () =>
+  document.body.classList.contains("sidebar-collapsed");
+function applySidebarState(hidden, { persist = true } = {}) {
+  document.body.classList.toggle("sidebar-collapsed", Boolean(hidden));
+  const button = $("navToggle");
+  if (button) {
+    button.setAttribute("aria-expanded", String(!hidden));
+    button.title = hidden
+      ? "Show the navigation panel"
+      : "Hide the navigation panel";
+  }
+  const floating = $("navToggleFloat");
+  if (floating) {
+    floating.setAttribute("aria-expanded", String(hidden));
+    floating.title = hidden
+      ? "Show the navigation panel"
+      : "Hide the navigation panel";
+  }
+  if (!persist) return;
+  try {
+    localStorage.setItem(SIDEBAR_KEY, hidden ? "1" : "0");
+  } catch {
+    /* private browsing — the toggle still works for this session */
+  }
+}
+function toggleSidebar() {
+  applySidebarState(!sidebarCollapsed());
+}
+$("navToggle")?.addEventListener("click", toggleSidebar);
+$("navToggleFloat")?.addEventListener("click", toggleSidebar);
+try {
+  applySidebarState(localStorage.getItem(SIDEBAR_KEY) === "1", {
+    persist: false,
+  });
+} catch {
+  applySidebarState(false, { persist: false });
+}
+
 socket.on("connect_error", (err) => {
   if ((err.message || "").toLowerCase().includes("unauthorized"))
     location.replace("/login");
@@ -1536,14 +1582,251 @@ document.querySelectorAll("[data-mvp-mode]").forEach((b) =>
     socket.emit("broadcast:mvp", { mode });
   }),
 );
-$("resetTournament").addEventListener("click", () => {
-  if (
-    prompt(
-      "Type RESET BGMI TOURNAMENT to erase local tournament history and current scores.",
-    ) === "RESET BGMI TOURNAMENT"
-  )
-    socket.emit("tournament:reset", "RESET BGMI TOURNAMENT");
+// ---------------------------------------------------------------------------
+// MASTER RESET — every destructive reset is unlocked by the administrator's
+// special reset password, never by the login session alone. The competition
+// scope keeps team registrations; the factory scope clears the event entirely.
+// ---------------------------------------------------------------------------
+let resetPasswordInfo = {
+  configured: false,
+  updatedAt: null,
+  updatedBy: "",
+  loginPasswordRequired: true,
+};
+let masterResetScope = "competition";
+let masterResetBusy = false;
+let resetPasswordLoaded = false;
+
+const masterResetDialog = () => $("masterResetDialog");
+function renderResetPasswordPanel() {
+  const tag = $("resetPasswordState");
+  if (tag) {
+    tag.textContent = resetPasswordInfo.configured ? "SET" : "NOT SET";
+    tag.classList.toggle("warn", !resetPasswordInfo.configured);
+  }
+  const hint = $("resetPasswordHint");
+  if (hint) {
+    if (!resetPasswordInfo.configured)
+      hint.textContent =
+        "No reset password is set yet, so the master reset stays locked. Set one now: it is asked for every time data is wiped.";
+    else
+      hint.textContent = `Reset password set${
+        resetPasswordInfo.updatedBy
+          ? ` by ${resetPasswordInfo.updatedBy}`
+          : ""
+      }${
+        resetPasswordInfo.updatedAt
+          ? ` on ${fmtDate(resetPasswordInfo.updatedAt)}`
+          : ""
+      }. Changing it asks for your administrator login password again.`;
+  }
+  const loginWrap = $("resetSetupLoginWrap");
+  if (loginWrap) loginWrap.hidden = !resetPasswordInfo.loginPasswordRequired;
+  const note = $("masterResetNote");
+  if (note)
+    note.textContent = resetPasswordInfo.configured
+      ? "The reset password is set by the admin in Tournament setup → Reset protection password."
+      : "No reset password is configured yet. Set one in Tournament setup → Reset protection password to unlock the master reset.";
+}
+async function loadResetPasswordStatus() {
+  try {
+    const response = await fetch("/api/admin/reset-password", {
+      credentials: "same-origin",
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    resetPasswordInfo = { ...resetPasswordInfo, ...payload };
+    resetPasswordLoaded = true;
+  } catch {
+    return;
+  }
+  renderResetPasswordPanel();
+}
+function setMasterResetError(message) {
+  const el = $("masterResetError");
+  if (!el) return;
+  if (!message) {
+    el.hidden = true;
+    el.textContent = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = message;
+}
+function renderMasterResetScope() {
+  const list = $("masterResetScopeList");
+  if (list) list.classList.toggle("factory", masterResetScope === "factory");
+  const confirmButton = $("masterResetConfirm");
+  if (confirmButton)
+    confirmButton.textContent =
+      masterResetScope === "factory"
+        ? "⟲ Factory reset everything"
+        : "⟲ Reset event data";
+}
+function openMasterReset(scope = "competition") {
+  masterResetScope = scope === "factory" ? "factory" : "competition";
+  document
+    .querySelectorAll('input[name="masterResetScope"]')
+    .forEach((radio) => (radio.checked = radio.value === masterResetScope));
+  const password = $("masterResetPassword");
+  if (password) {
+    password.value = "";
+    password.type = "password";
+  }
+  const showButton = $("masterResetShow");
+  if (showButton) {
+    showButton.textContent = "SHOW";
+    showButton.setAttribute("aria-pressed", "false");
+  }
+  setMasterResetError("");
+  renderMasterResetScope();
+  const dialog = masterResetDialog();
+  if (!dialog) return;
+  if (typeof dialog.showModal === "function") {
+    if (!dialog.open) dialog.showModal();
+  } else dialog.setAttribute("open", "");
+  loadResetPasswordStatus();
+  setTimeout(() => $("masterResetPassword")?.focus(), 40);
+}
+function closeMasterReset() {
+  const dialog = masterResetDialog();
+  if (!dialog) return;
+  const password = $("masterResetPassword");
+  if (password) password.value = "";
+  setMasterResetError("");
+  if (typeof dialog.close === "function" && dialog.open) dialog.close();
+  else dialog.removeAttribute("open");
+}
+$("resetAllData")?.addEventListener("click", () => openMasterReset("competition"));
+$("openMasterReset")?.addEventListener("click", () =>
+  openMasterReset("competition"),
+);
+$("openFactoryReset")?.addEventListener("click", () =>
+  openMasterReset("factory"),
+);
+$("masterResetClose")?.addEventListener("click", closeMasterReset);
+$("masterResetSettingsLink")?.addEventListener("click", () => {
+  closeMasterReset();
+  showPage("settings");
+  $("resetProtectionPanel")?.scrollIntoView({ behavior: "smooth", block: "center" });
 });
+$("masterResetCancel")?.addEventListener("click", closeMasterReset);
+masterResetDialog()?.addEventListener("click", (event) => {
+  if (event.target === masterResetDialog()) closeMasterReset();
+});
+$("masterResetShow")?.addEventListener("click", () => {
+  const input = $("masterResetPassword");
+  if (!input) return;
+  const reveal = input.type === "password";
+  input.type = reveal ? "text" : "password";
+  const button = $("masterResetShow");
+  button.textContent = reveal ? "HIDE" : "SHOW";
+  button.setAttribute("aria-pressed", String(reveal));
+});
+document
+  .querySelectorAll('input[name="masterResetScope"]')
+  .forEach((radio) =>
+    radio.addEventListener("change", () => {
+      if (!radio.checked) return;
+      masterResetScope = radio.value === "factory" ? "factory" : "competition";
+      renderMasterResetScope();
+    }),
+  );
+$("masterResetConfirm")?.addEventListener("click", async () => {
+  if (masterResetBusy) return;
+  const passwordInput = $("masterResetPassword");
+  const password = passwordInput ? passwordInput.value : "";
+  if (!password)
+    return setMasterResetError(
+      "Enter the reset protection password to continue.",
+    );
+  // A freshly opened dashboard may not have the status yet; never refuse the
+  // reset on a stale "not configured" answer.
+  if (!resetPasswordLoaded) await loadResetPasswordStatus();
+  if (!resetPasswordInfo.configured)
+    return setMasterResetError(
+      "No reset password is configured yet. Set one in Tournament setup → Reset protection password first.",
+    );
+  if (
+    masterResetScope === "factory" &&
+    !confirm(
+      "Factory reset also erases team registrations and approved rosters. Continue?",
+    )
+  )
+    return;
+  const button = $("masterResetConfirm");
+  const label = button.textContent;
+  masterResetBusy = true;
+  button.disabled = true;
+  button.textContent = "Resetting…";
+  setMasterResetError("");
+  socket
+    .timeout(20000)
+    .emit(
+      "tournament:master-reset",
+      { password, scope: masterResetScope },
+      (err, response) => {
+        masterResetBusy = false;
+        button.disabled = false;
+        button.textContent = label;
+        if (err)
+          return setMasterResetError(
+            "The control server did not answer. Check the connection and try again.",
+          );
+        if (!response || response.ok === false)
+          return setMasterResetError(
+            (response && response.error) || "The reset could not be completed.",
+          );
+        lineupDirty = false;
+        pendingMatchTeamIds = null;
+        closeMasterReset();
+        toast(
+          response.scope === "factory"
+            ? "Factory reset complete — the event is blank, registrations included."
+            : "Event data reset to zero. Team registrations and rosters were kept.",
+        );
+      },
+    );
+});
+$("saveResetPassword")?.addEventListener("click", async () => {
+  const button = $("saveResetPassword");
+  const payload = {
+    loginPassword: $("resetSetupLoginPassword").value,
+    newPassword: $("resetSetupNewPassword").value,
+    confirmPassword: $("resetSetupConfirmPassword").value,
+  };
+  if (payload.newPassword.length < 8)
+    return toast("Use a reset password between 8 and 128 characters.");
+  if (payload.newPassword !== payload.confirmPassword)
+    return toast("The two reset password entries do not match.");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/admin/reset-password", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      return toast(result.error || "The reset password could not be saved.");
+    ["resetSetupLoginPassword", "resetSetupNewPassword", "resetSetupConfirmPassword"].forEach(
+      (id) => {
+        const field = $(id);
+        if (field) field.value = "";
+      },
+    );
+    resetPasswordInfo = { ...resetPasswordInfo, ...result };
+    resetPasswordLoaded = true;
+    renderResetPasswordPanel();
+    toast("Reset password saved. The master reset is now unlocked.");
+  } catch {
+    toast("The reset password could not be saved. Check the connection.");
+  } finally {
+    button.disabled = false;
+  }
+});
+loadResetPasswordStatus();
 $("copyOverlay").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(`${location.origin}/overlay`);

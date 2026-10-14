@@ -170,9 +170,48 @@ How it works, and how to turn it off:
 
 Public viewers can browse the standings and stats, but only authenticated administrators can change tournament state or control broadcast scenes. The public page is read-only.
 
+## Master reset (admin protected)
+
+Rehearsals leave numbers everywhere, so the dashboard carries a single **⟲ Reset all data…** button in the
+**Match setup** action bar (next to *Save match & lineup*, *Start match*, *End & review results* and
+*Reset current inputs*). A second entry point lives in **Tournament setup → Reset tournament data**.
+
+The reset erases, for the whole event:
+
+- the live lobby — finishes, placements, damage and Alive/Knock/Eliminated status of every squad;
+- live standings and current-match points;
+- the overall standings — total points, finishes, placement points and matches played;
+- finalized match history and the recent-results feed;
+- the MVP spotlight selection and the overall top-fragger leaderboard;
+- the match number/status, broadcast scene, countdown timers and the event log.
+
+It deliberately **keeps team registration data**: the registration desk, approved squads and their
+rosters, group allocation, scoring rules, qualification slots and production identity all survive. The
+match lineup is rebuilt from the approved squads in the current group so the next rehearsal starts on
+real teams.
+
+The reset only runs with the **reset protection password** — a special password the administrator sets in
+**Tournament setup → Reset protection password**, separate from the login password. It is stored as a
+bcrypt hash in `data/reset-password.json` (0600, never committed) and is asked for on every wipe.
+Incorrect attempts are rate-limited (10 per 15 minutes per address) and logged in the audit trail.
+Changing the password asks for the administrator login password again, which also recovers a forgotten one.
+
+The dialog also offers a **Factory reset** option, which additionally erases team registrations and
+approved rosters. Both scopes require the reset password.
+
+## Collapsible navigation panel
+
+The operator top bar carries a hamburger button (left of the page title). Click it to fold the left
+navigation panel away and give the live squad controls — or any wide table — the whole screen; click it
+again to bring the panel back. While the panel is hidden a small floating button sits at the bottom-left
+so it can be reopened anywhere on a long page, and the choice is remembered per browser
+(`localStorage → bgmi.sidebarHidden`). On screens 1600px or wider the live-controls grid gains a third
+squad column once the panel is out of the way.
+
 ## Security notes
 
 - Keep local development bound to `127.0.0.1` unless you configure a secure hosted deployment.
+- The reset protection password is a second, purpose-built credential for the destructive master reset. Keep `data/reset-password.json` private together with `data/admin.json`.
 - Public registration still requires captain login and server-side validation. Email/SMS ownership verification and CAPTCHA require a configured provider; they are not automatically supplied here.
 - The public standings route intentionally has no login because it is the viewer page. It returns sanitized tournament information only.
 - Before hosting for a public event, configure HTTPS, a strong session secret, secure cookie settings, restricted MongoDB credentials, backups, and contact verification/anti-abuse checks. This project has not undergone a professional penetration test.
